@@ -42,7 +42,8 @@ export function RightPanel() {
     <aside
       className={cn(
         "border-l bg-muted/30 transition-all duration-300 overflow-hidden",
-        rightOpen ? "w-[400px]" : "w-0"
+        "max-md:absolute max-md:right-0 max-md:z-20 max-md:h-full max-md:w-full",
+        rightOpen ? "w-[400px] max-md:w-full" : "w-0"
       )}
     >
       <div className="h-full overflow-y-auto">

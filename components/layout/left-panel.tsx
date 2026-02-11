@@ -18,6 +18,7 @@ export function LeftPanel() {
     <aside
       className={cn(
         "border-r bg-muted/30 transition-all duration-300 overflow-hidden shrink-0",
+        "max-md:absolute max-md:z-20 max-md:h-full",
         leftOpen ? "w-60" : "w-0"
       )}
     >

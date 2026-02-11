@@ -5,9 +5,11 @@ import { DefaultChatTransport } from "ai"
 import { useRef, useEffect, useMemo } from "react"
 import { ChatMessage } from "./chat-message"
 import { ChatInput } from "./chat-input"
+import { MarkdownContent } from "./markdown-content"
 import { useLLM } from "@/lib/stores/llm-store"
 import { useChain } from "@/lib/stores/chain-store"
 import { Bot, MessageSquare } from "lucide-react"
+import { Avatar } from "@/components/ui/avatar"
 import { isToolUIPart, getToolName } from "ai"
 import { ToolResultRenderer } from "./cards/tool-result-renderer"
 
@@ -30,13 +32,15 @@ export function ChatPanel() {
     [config?.provider, config?.apiKey, config?.model, endpoint]
   )
 
-  const { messages, sendMessage } = useChat({ transport })
+  const { messages, sendMessage, status } = useChat({ transport })
+
+  const isLoading = status === "submitted" || status === "streaming"
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [messages])
+  }, [messages, isLoading])
 
   if (!isConfigured) {
     return (
@@ -78,6 +82,9 @@ export function ChatPanel() {
               <ChatMessage key={message.id} role={message.role as "user" | "assistant"}>
                 {message.parts.map((part, i) => {
                   if (part.type === "text") {
+                    if (message.role === "assistant") {
+                      return <MarkdownContent key={i} content={part.text} />
+                    }
                     return <span key={i}>{part.text}</span>
                   }
                   if (isToolUIPart(part)) {
@@ -101,6 +108,28 @@ export function ChatPanel() {
                 })}
               </ChatMessage>
             ))
+          )}
+
+          {isLoading && (
+            <div className="flex gap-3 px-4 py-3">
+              <Avatar className="h-8 w-8 border flex items-center justify-center bg-primary/10 shrink-0">
+                <Bot className="h-4 w-4" />
+              </Avatar>
+              <div className="flex items-center gap-1 px-4 py-2">
+                <div
+                  className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce"
+                  style={{ animationDelay: "0ms" }}
+                />
+                <div
+                  className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce"
+                  style={{ animationDelay: "150ms" }}
+                />
+                <div
+                  className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce"
+                  style={{ animationDelay: "300ms" }}
+                />
+              </div>
+            </div>
           )}
         </div>
       </div>

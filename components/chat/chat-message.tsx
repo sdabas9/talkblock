@@ -24,13 +24,19 @@ export function ChatMessage({ role, children }: ChatMessageProps) {
       )}
       <div
         className={cn(
-          "rounded-lg px-4 py-2 max-w-[80%] text-sm whitespace-pre-wrap",
+          "rounded-lg px-4 py-2 max-w-[80%] text-sm",
           role === "user"
-            ? "bg-primary text-primary-foreground"
+            ? "bg-primary text-primary-foreground whitespace-pre-wrap"
             : "bg-muted"
         )}
       >
-        {children}
+        {role === "assistant" ? (
+          <div className="prose prose-sm prose-invert max-w-none">
+            {children}
+          </div>
+        ) : (
+          children
+        )}
       </div>
       {role === "user" && (
         <Avatar className="h-8 w-8 border flex items-center justify-center bg-muted shrink-0">

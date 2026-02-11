@@ -20,7 +20,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <PanelProvider>
               <div className="h-screen flex flex-col">
                 <Header />
-                <div className="flex-1 flex overflow-hidden">
+                <div className="flex-1 flex overflow-hidden relative">
                   <LeftPanel />
                   <main className="flex-1 flex flex-col overflow-hidden">
                     {children}
