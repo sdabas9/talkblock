@@ -1,0 +1,277 @@
+import { tool, type ToolSet } from "ai"
+import { z } from "zod"
+import { AntelopeClient } from "@/lib/antelope/client"
+
+export function createChainTools(endpoint: string | null): ToolSet {
+  if (!endpoint) return {}
+
+  const client = new AntelopeClient(endpoint)
+
+  return {
+    get_account: tool({
+      description:
+        "Get detailed information about an Antelope blockchain account including balances, resources (RAM, CPU, NET), and permissions.",
+      inputSchema: z.object({
+        account_name: z
+          .string()
+          .describe("The account name to look up (e.g. 'eosio.token')"),
+      }),
+      execute: async ({ account_name }) => {
+        try {
+          const account = await client.getAccount(account_name)
+          return {
+            account_name: account.account_name,
+            balance: account.core_liquid_balance || "0",
+            ram: { used: account.ram_usage, quota: account.ram_quota },
+            cpu: account.cpu_limit,
+            net: account.net_limit,
+            cpu_staked: account.total_resources?.cpu_weight || "0",
+            net_staked: account.total_resources?.net_weight || "0",
+            permissions: account.permissions.map((p) => ({
+              name: p.perm_name,
+              parent: p.parent,
+              threshold: p.required_auth.threshold,
+              keys: p.required_auth.keys,
+              accounts: p.required_auth.accounts,
+            })),
+            voter_info: account.voter_info || null,
+          }
+        } catch (e) {
+          return {
+            error: e instanceof Error ? e.message : "Failed to fetch account",
+          }
+        }
+      },
+    }),
+
+    get_block: tool({
+      description: "Get information about a specific block by block number.",
+      inputSchema: z.object({
+        block_num: z.number().describe("The block number to look up"),
+      }),
+      execute: async ({ block_num }) => {
+        try {
+          const block = await client.getBlock(block_num)
+          return {
+            block_num: block.block_num,
+            id: block.id,
+            timestamp: block.timestamp,
+            producer: block.producer,
+            confirmed: block.confirmed,
+            transaction_count: block.transactions?.length || 0,
+            transactions: (block.transactions || [])
+              .slice(0, 10)
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              .map((tx: any) => ({
+                id: typeof tx.trx === "string" ? tx.trx : tx.trx?.id,
+                status: tx.status,
+                cpu_usage_us: tx.cpu_usage_us,
+                net_usage_words: tx.net_usage_words,
+              })),
+          }
+        } catch (e) {
+          return {
+            error: e instanceof Error ? e.message : "Failed to fetch block",
+          }
+        }
+      },
+    }),
+
+    get_transaction: tool({
+      description:
+        "Look up a transaction by its transaction ID. Note: requires history plugin on the endpoint.",
+      inputSchema: z.object({
+        transaction_id: z
+          .string()
+          .describe("The transaction ID (hash) to look up"),
+      }),
+      execute: async ({ transaction_id }) => {
+        try {
+          const tx = await client.getTransaction(transaction_id)
+          return {
+            id: tx.id,
+            block_num: tx.block_num,
+            block_time: tx.block_time,
+            actions: tx.trx?.trx?.actions || [],
+            status: tx.trx?.receipt?.status,
+          }
+        } catch (e) {
+          return {
+            error:
+              e instanceof Error ? e.message : "Failed to fetch transaction",
+          }
+        }
+      },
+    }),
+
+    get_table_rows: tool({
+      description:
+        "Query rows from a smart contract table. Use this to read on-chain data from any contract.",
+      inputSchema: z.object({
+        code: z
+          .string()
+          .describe("The contract account name (e.g. 'eosio.token')"),
+        table: z.string().describe("The table name (e.g. 'accounts')"),
+        scope: z
+          .string()
+          .describe(
+            "The scope (usually the account name or contract name)"
+          ),
+        limit: z
+          .number()
+          .optional()
+          .describe("Max rows to return (default 10)"),
+        lower_bound: z.string().optional().describe("Lower bound for key"),
+        upper_bound: z.string().optional().describe("Upper bound for key"),
+      }),
+      execute: async ({
+        code,
+        table,
+        scope,
+        limit,
+        lower_bound,
+        upper_bound,
+      }) => {
+        try {
+          return await client.getTableRows({
+            code,
+            table,
+            scope,
+            limit,
+            lower_bound,
+            upper_bound,
+          })
+        } catch (e) {
+          return {
+            error:
+              e instanceof Error ? e.message : "Failed to fetch table rows",
+          }
+        }
+      },
+    }),
+
+    get_abi: tool({
+      description:
+        "Get the ABI (Application Binary Interface) of a smart contract. Shows available tables, actions, and data structures.",
+      inputSchema: z.object({
+        account_name: z.string().describe("The contract account name"),
+      }),
+      execute: async ({ account_name }) => {
+        try {
+          const result = await client.getAbi(account_name)
+          const abi = result.abi
+          if (!abi) return { error: "No ABI found for this account" }
+          return {
+            account_name: result.account_name,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            tables: abi.tables?.map((t: any) => t.name) || [],
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            actions: abi.actions?.map((a: any) => a.name) || [],
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            structs:
+              abi.structs?.map((s: any) => ({
+                name: s.name,
+                fields: s.fields,
+              })) || [],
+          }
+        } catch (e) {
+          return {
+            error: e instanceof Error ? e.message : "Failed to fetch ABI",
+          }
+        }
+      },
+    }),
+
+    get_currency_balance: tool({
+      description:
+        "Get token balances for an account from a specific token contract.",
+      inputSchema: z.object({
+        code: z
+          .string()
+          .describe("The token contract (e.g. 'eosio.token')"),
+        account: z.string().describe("The account to check balance for"),
+        symbol: z
+          .string()
+          .optional()
+          .describe("Token symbol filter (e.g. 'EOS')"),
+      }),
+      execute: async ({ code, account, symbol }) => {
+        try {
+          const balances = await client.getCurrencyBalance(
+            code,
+            account,
+            symbol
+          )
+          return { account, balances }
+        } catch (e) {
+          return {
+            error:
+              e instanceof Error ? e.message : "Failed to fetch balance",
+          }
+        }
+      },
+    }),
+
+    get_producers: tool({
+      description: "Get the list of block producers on the chain.",
+      inputSchema: z.object({
+        limit: z
+          .number()
+          .optional()
+          .describe("Max producers to return (default 21)"),
+      }),
+      execute: async ({ limit }) => {
+        try {
+          const result = await client.getProducers(limit || 21)
+          return {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            producers: result.rows.map((p: any) => ({
+              owner: p.owner,
+              total_votes: p.total_votes,
+              url: p.url,
+              is_active: p.is_active,
+              unpaid_blocks: p.unpaid_blocks,
+            })),
+            total_producer_vote_weight: result.total_producer_vote_weight,
+          }
+        } catch (e) {
+          return {
+            error:
+              e instanceof Error ? e.message : "Failed to fetch producers",
+          }
+        }
+      },
+    }),
+
+    build_transaction: tool({
+      description:
+        "Build a transaction proposal for the user to review and sign. Use this when the user wants to perform any on-chain action (transfer tokens, stake, buy RAM, etc). The transaction will be shown to the user for approval — they must explicitly sign it.",
+      inputSchema: z.object({
+        actions: z
+          .array(
+            z.object({
+              account: z.string().describe("The contract to call"),
+              name: z.string().describe("The action name"),
+              data: z
+                .record(z.string(), z.any())
+                .describe("The action data"),
+            })
+          )
+          .describe("The actions to include in the transaction"),
+        description: z
+          .string()
+          .describe(
+            "Human-readable description of what this transaction does"
+          ),
+      }),
+      execute: async ({ actions, description }) => {
+        return {
+          type: "transaction_proposal" as const,
+          description,
+          actions,
+          status: "pending_signature" as const,
+        }
+      },
+    }),
+  }
+}
