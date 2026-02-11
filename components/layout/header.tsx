@@ -1,6 +1,7 @@
 "use client"
 
 import { usePanels } from "@/lib/stores/panel-store"
+import { ChainSelector } from "@/components/chain/chain-selector"
 import { Button } from "@/components/ui/button"
 import { PanelLeft, PanelRight, Settings, Wallet } from "lucide-react"
 
@@ -15,11 +16,8 @@ export function Header() {
         </Button>
         <h1 className="text-lg font-semibold">Antelope Explorer</h1>
       </div>
-
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" id="chain-selector">
-          No Chain Connected
-        </Button>
+        <ChainSelector />
         <Button variant="outline" size="sm" id="wallet-connect">
           <Wallet className="h-4 w-4 mr-2" />
           Connect Wallet

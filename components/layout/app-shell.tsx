@@ -1,23 +1,26 @@
 "use client"
 
 import { PanelProvider } from "@/lib/stores/panel-store"
+import { ChainProvider } from "@/lib/stores/chain-store"
 import { Header } from "./header"
 import { LeftPanel } from "./left-panel"
 import { RightPanel } from "./right-panel"
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <PanelProvider>
-      <div className="h-screen flex flex-col">
-        <Header />
-        <div className="flex-1 flex overflow-hidden">
-          <LeftPanel />
-          <main className="flex-1 flex flex-col overflow-hidden">
-            {children}
-          </main>
-          <RightPanel />
+    <ChainProvider>
+      <PanelProvider>
+        <div className="h-screen flex flex-col">
+          <Header />
+          <div className="flex-1 flex overflow-hidden">
+            <LeftPanel />
+            <main className="flex-1 flex flex-col overflow-hidden">
+              {children}
+            </main>
+            <RightPanel />
+          </div>
         </div>
-      </div>
-    </PanelProvider>
+      </PanelProvider>
+    </ChainProvider>
   )
 }
