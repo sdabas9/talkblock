@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Talkblock
+
+Chat-first blockchain explorer for [Antelope](https://antelope.io) chains. Ask questions in natural language, get structured results, and build a personal dashboard from bookmarked data.
+
+## Features
+
+- **Chat interface** -- Ask about accounts, blocks, transactions, contracts, token balances, and producers using natural language
+- **Multi-chain** -- Connect to EOS, WAX, Telos, Jungle4, FIO, Libre, or any custom RPC endpoint
+- **Dashboard** -- Bookmark results from chat and arrange them as draggable, renamable cards in a responsive grid
+- **Multi-provider LLM** -- Bring your own API key for Anthropic (Claude), OpenAI (GPT), or Google (Gemini)
+- **Wallet integration** -- Connect via Anchor wallet (Wharfkit) to sign and broadcast transactions
+- **Light/Dark theme** -- Toggle between themes, preference persists across sessions
+- **Works without auth** -- Full functionality using localStorage; optionally connect Supabase for server-side persistence
+
+## Tech Stack
+
+- **Framework** -- Next.js 16 (App Router, Turbopack)
+- **UI** -- React 19, Tailwind CSS 4, shadcn/ui, Lucide icons
+- **AI** -- Vercel AI SDK with tool-calling for on-chain queries
+- **Blockchain** -- Wharfkit for wallet sessions and contract interaction
+- **Database** -- Supabase (optional, for auth and persistent bookmarks/conversations)
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js >= 20.9.0
+
+### Install
+
+```bash
+git clone https://github.com/sdabas9/talkblock.git
+cd talkblock
+npm install
+```
+
+### Configure
+
+Copy the example env file:
+
+```bash
+cp .env.local.example .env.local
+```
+
+Fill in your Supabase credentials (optional -- the app works without them using localStorage).
+
+### Run
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000), select a chain, configure your LLM provider, and start chatting.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+app/
+  (app)/          -- Main app layout and page (chat + dashboard)
+  api/            -- API routes (chat, auth, bookmarks, conversations, settings)
+  login/          -- Chain selection page
+components/
+  chat/           -- Chat panel, message rendering, tool result cards
+  dashboard/      -- Dashboard view and card components
+  layout/         -- App shell, header, left panel
+  chain/          -- Chain selector
+  settings/       -- LLM settings
+  wallet/         -- Wallet button
+lib/
+  stores/         -- React context stores (panel, history, dashboard, auth, chain, LLM, wallet, conversation)
+  supabase/       -- Supabase client/server helpers
+supabase/
+  migrations/     -- Database schema
+```
 
-## Learn More
+## License
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT
