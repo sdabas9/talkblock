@@ -3,8 +3,9 @@
 import { usePanels } from "@/lib/stores/panel-store"
 import { ChainSelector } from "@/components/chain/chain-selector"
 import { LLMSettings } from "@/components/settings/llm-settings"
+import { WalletButton } from "@/components/wallet/wallet-button"
 import { Button } from "@/components/ui/button"
-import { PanelLeft, PanelRight, Wallet } from "lucide-react"
+import { PanelLeft, PanelRight } from "lucide-react"
 
 export function Header() {
   const { toggleLeft, toggleRight } = usePanels()
@@ -19,10 +20,7 @@ export function Header() {
       </div>
       <div className="flex items-center gap-2">
         <ChainSelector />
-        <Button variant="outline" size="sm" id="wallet-connect">
-          <Wallet className="h-4 w-4 mr-2" />
-          Connect Wallet
-        </Button>
+        <WalletButton />
         <LLMSettings />
         <Button variant="ghost" size="icon" onClick={toggleRight}>
           <PanelRight className="h-4 w-4" />
