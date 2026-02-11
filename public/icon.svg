@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Chat bubble -->
+  <path d="M4 8C4 4.68629 6.68629 2 10 2H38C41.3137 2 44 4.68629 44 8V32C44 35.3137 41.3137 38 38 38H28L20 46L20 38H10C6.68629 38 4 35.3137 4 32V8Z" fill="#6366f1"/>
+  <!-- Block/cube -->
+  <path d="M24 10L36 17V31L24 38L12 31V17L24 10Z" fill="none" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M24 10V24M24 24L36 17M24 24L12 17M24 24V38" stroke="white" stroke-width="1.5" stroke-linejoin="round" opacity="0.6"/>
+</svg>

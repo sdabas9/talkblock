@@ -1,7 +1,8 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react"
+import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react"
 import { useChain } from "@/lib/stores/chain-store"
+import { useAuth } from "@/lib/stores/auth-store"
 
 // Wharfkit types - import dynamically since they're browser-only
 interface WalletSession {
@@ -17,6 +18,7 @@ interface WalletState {
   connecting: boolean
   error: string | null
   login: () => Promise<void>
+  cancelLogin: () => void
   logout: () => Promise<void>
   transact: (actions: Array<{ account: string; name: string; data: Record<string, unknown> }>) => Promise<any>
 }
@@ -25,14 +27,20 @@ const WalletContext = createContext<WalletState | null>(null)
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   const { endpoint, chainInfo } = useChain()
+  const auth = useAuth()
   const [session, setSession] = useState<WalletSession | null>(null)
   const [accountName, setAccountName] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sessionKit, setSessionKit] = useState<any>(null)
+  const abortRef = useRef(false)
 
-  // Initialize SessionKit when chain changes
+  // Initialize SessionKit when chain changes — logout previous session
   useEffect(() => {
+    setSession(null)
+    setAccountName(null)
+    auth.logout()
+
     if (!endpoint || !chainInfo) {
       setSessionKit(null)
       return
@@ -45,7 +53,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         const { WalletPluginAnchor } = await import("@wharfkit/wallet-plugin-anchor")
 
         const kit = new SessionKit({
-          appName: "Antelope Explorer",
+          appName: "Talkblock",
           chains: [
             {
               id: chainInfo.chain_id,
@@ -58,9 +66,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
         setSessionKit(kit)
 
-        // Try to restore previous session
+        // Try to restore previous session (with timeout)
         try {
-          const restored = await kit.restore()
+          const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
+          const restored = await Promise.race([kit.restore(), timeout])
           if (restored) {
             setSession({
               actor: String(restored.actor),
@@ -69,6 +78,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               transact: (args: any) => restored.transact(args),
             })
             setAccountName(String(restored.actor))
+            // Re-authenticate so bookmarks/conversations load from DB
+            if (chainInfo?.chain_id) {
+              auth.login(String(restored.actor), chainInfo.chain_id).catch(console.error)
+            }
           }
         } catch {
           // No previous session, that's fine
@@ -79,17 +92,32 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
 
     init()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endpoint, chainInfo])
+
+  const cancelLogin = useCallback(() => {
+    abortRef.current = true
+    setConnecting(false)
+    setError(null)
+  }, [])
 
   const login = useCallback(async () => {
     if (!sessionKit) {
       setError("Connect to a chain first")
       return
     }
+    abortRef.current = false
     setConnecting(true)
     setError(null)
     try {
-      const result = await sessionKit.login()
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Wallet connection timed out. Make sure Anchor wallet is installed.")), 30000)
+      )
+      const result = await Promise.race([sessionKit.login(), timeout]) as any
+      if (abortRef.current || !result?.session) {
+        setConnecting(false)
+        return
+      }
       const s = result.session
       setSession({
         actor: String(s.actor),
@@ -98,12 +126,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         transact: (args: any) => s.transact(args),
       })
       setAccountName(String(s.actor))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Login failed")
-    } finally {
-      setConnecting(false)
+      if (chainInfo?.chain_id) {
+        auth.login(String(s.actor), chainInfo.chain_id).catch(console.error)
+      }
+    } catch (e: any) {
+      if (abortRef.current) return
+      const msg = e?.message || String(e) || "Login failed"
+      if (!msg.toLowerCase().includes("cancel")) {
+        setError(msg)
+      }
     }
-  }, [sessionKit])
+    setConnecting(false)
+  }, [sessionKit, chainInfo, auth])
 
   const logout = useCallback(async () => {
     if (sessionKit && session) {
@@ -115,7 +149,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
     setSession(null)
     setAccountName(null)
-  }, [sessionKit, session])
+    auth.logout()
+  }, [sessionKit, session, auth])
 
   const transact = useCallback(async (actions: Array<{ account: string; name: string; data: Record<string, unknown> }>) => {
     if (!session) throw new Error("No wallet connected")
@@ -133,7 +168,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   return (
     <WalletContext.Provider
-      value={{ session, accountName, connecting, error, login, logout, transact }}
+      value={{ session, accountName, connecting, error, login, cancelLogin, logout, transact }}
     >
       {children}
     </WalletContext.Provider>

@@ -12,7 +12,7 @@ import {
 import { Wallet, LogOut, Loader2 } from "lucide-react"
 
 export function WalletButton() {
-  const { accountName, connecting, login, logout } = useWallet()
+  const { accountName, connecting, error, login, cancelLogin, logout } = useWallet()
   const { chainInfo } = useChain()
 
   if (!chainInfo) {
@@ -44,13 +44,24 @@ export function WalletButton() {
   }
 
   return (
-    <Button variant="outline" size="sm" onClick={login} disabled={connecting}>
-      {connecting ? (
-        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-      ) : (
-        <Wallet className="h-4 w-4 mr-2" />
+    <div className="flex items-center gap-1">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={connecting ? cancelLogin : login}
+      >
+        {connecting ? (
+          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        ) : (
+          <Wallet className="h-4 w-4 mr-2" />
+        )}
+        {connecting ? "Cancel" : "Connect Wallet"}
+      </Button>
+      {error && (
+        <span className="text-xs text-destructive max-w-[200px] truncate" title={error}>
+          {error}
+        </span>
       )}
-      Connect Wallet
-    </Button>
+    </div>
   )
 }

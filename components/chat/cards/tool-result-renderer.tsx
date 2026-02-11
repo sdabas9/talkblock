@@ -5,14 +5,47 @@ import { BlockCard } from "./block-card"
 import { TransactionCard } from "./transaction-card"
 import { TableCard } from "./table-card"
 import { TxProposalCard } from "./tx-proposal-card"
+import { useHistory } from "@/lib/stores/history-store"
+import { useChain } from "@/lib/stores/chain-store"
+import { Button } from "@/components/ui/button"
+import { Bookmark } from "lucide-react"
 
 interface ToolResultRendererProps {
   toolName: string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   result: Record<string, any>
+  onTxError?: (error: string, actions: Array<{ account: string; name: string; data: Record<string, unknown> }>) => void
 }
 
-export function ToolResultRenderer({ toolName, result }: ToolResultRendererProps) {
+function getLabel(toolName: string, result: Record<string, any>): string {
+  switch (toolName) {
+    case "get_account": return result.account_name || "Account"
+    case "get_block": return `Block #${(result.block_num || "??").toLocaleString()}`
+    case "get_transaction": return `Tx ${(result.id || "??").slice(0, 8)}...`
+    case "get_table_rows": {
+      const parts = [result.code, result.table].filter(Boolean)
+      return parts.length ? parts.join(" / ") : "Table rows"
+    }
+    case "get_currency_balance": {
+      const balances = result.balances || []
+      if (balances.length === 1) return `${result.account || "??"} (${balances[0]})`
+      return `${result.account || "??"} (${balances.length} tokens)`
+    }
+    case "get_producers": return "Block Producers"
+    case "get_abi": return `${result.account_name || "??"} ABI`
+    case "build_transaction": {
+      const actions = result.actions || []
+      if (actions.length === 1) return `${actions[0].name} on ${actions[0].account}`
+      return result.description || `${actions.length}-action Tx`
+    }
+    default: return toolName
+  }
+}
+
+
+export function ToolResultRenderer({ toolName, result, onTxError }: ToolResultRendererProps) {
+  const { bookmarks, addBookmark, removeBookmark, isBookmarked } = useHistory()
+  const { chainName, endpoint } = useChain()
+
   if (result?.error) {
     return (
       <div className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2 my-1">
@@ -21,37 +54,73 @@ export function ToolResultRenderer({ toolName, result }: ToolResultRendererProps
     )
   }
 
-  switch (toolName) {
-    case "get_account":
-      return <AccountCard data={result as any} />
-    case "get_block":
-      return <BlockCard data={result as any} />
-    case "get_transaction":
-      return <TransactionCard data={result as any} />
-    case "get_table_rows":
-      return <TableCard data={result as any} />
-    case "get_currency_balance":
-      return (
-        <div className="text-sm bg-muted rounded-md px-3 py-2 my-1">
-          <span className="text-muted-foreground">Balances for </span>
-          <span className="font-medium">{String(result.account)}</span>
-          <span className="text-muted-foreground">: </span>
-          <span className="font-medium">{(result.balances || []).join(", ") || "None"}</span>
-        </div>
-      )
-    case "get_producers":
-      return <TableCard data={{ rows: result.producers || [] }} />
-    case "get_abi":
-      return (
-        <div className="text-sm bg-muted rounded-md px-3 py-2 my-1 space-y-1">
-          <div><span className="text-muted-foreground">Contract: </span><span className="font-medium">{String(result.account_name)}</span></div>
-          <div><span className="text-muted-foreground">Actions: </span>{(result.actions || []).join(", ")}</div>
-          <div><span className="text-muted-foreground">Tables: </span>{(result.tables || []).join(", ")}</div>
-        </div>
-      )
-    case "build_transaction":
-      return <TxProposalCard data={result as any} />
-    default:
-      return <pre className="text-xs bg-muted p-2 rounded overflow-auto my-1">{JSON.stringify(result, null, 2)}</pre>
+  const label = getLabel(toolName, result)
+  const bookmarked = isBookmarked(toolName, label)
+  const existingBookmark = bookmarks.find((b) => b.tool_name === toolName && b.label === label)
+
+  const toggleBookmark = async () => {
+    if (bookmarked && existingBookmark) {
+      await removeBookmark(existingBookmark.id)
+    } else {
+      await addBookmark({
+        toolName,
+        label,
+        result,
+        chainName: chainName || undefined,
+        chainEndpoint: endpoint || undefined,
+      })
+    }
   }
+
+  const renderCard = () => {
+    switch (toolName) {
+      case "get_account":
+        return <AccountCard data={result as any} />
+      case "get_block":
+        return <BlockCard data={result as any} />
+      case "get_transaction":
+        return <TransactionCard data={result as any} />
+      case "get_table_rows":
+        return <TableCard data={result as any} />
+      case "get_currency_balance":
+        return (
+          <div className="text-sm bg-muted rounded-md px-3 py-2 my-1">
+            <span className="text-muted-foreground">Balances for </span>
+            <span className="font-medium">{String(result.account)}</span>
+            <span className="text-muted-foreground">: </span>
+            <span className="font-medium">{(result.balances || []).join(", ") || "None"}</span>
+          </div>
+        )
+      case "get_producers":
+        return <TableCard data={{ rows: result.producers || [] }} />
+      case "get_abi":
+        return (
+          <div className="text-sm bg-muted rounded-md px-3 py-2 my-1 space-y-1">
+            <div><span className="text-muted-foreground">Contract: </span><span className="font-medium">{String(result.account_name)}</span></div>
+            <div><span className="text-muted-foreground">Actions: </span>{(result.actions || []).join(", ")}</div>
+            <div><span className="text-muted-foreground">Tables: </span>{(result.tables || []).join(", ")}</div>
+          </div>
+        )
+      case "build_transaction":
+        return <TxProposalCard data={result as any} onTxError={onTxError} />
+      default:
+        return <pre className="text-xs bg-muted p-2 rounded overflow-auto my-1">{JSON.stringify(result, null, 2)}</pre>
+    }
+  }
+
+  return (
+    <div className="relative group">
+      {renderCard()}
+      {!result?.error && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={(e) => { e.stopPropagation(); toggleBookmark() }}
+        >
+          <Bookmark className={`h-3.5 w-3.5 ${bookmarked ? "fill-primary text-primary" : ""}`} />
+        </Button>
+      )}
+    </div>
+  )
 }

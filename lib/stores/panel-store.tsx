@@ -2,30 +2,28 @@
 
 import { createContext, useContext, useState, ReactNode } from "react"
 
+type View = "chat" | "dashboard"
+
 interface PanelState {
   leftOpen: boolean
-  rightOpen: boolean
+  view: View
   toggleLeft: () => void
-  toggleRight: () => void
-  openRight: () => void
-  closeRight: () => void
+  setView: (view: View) => void
 }
 
 const PanelContext = createContext<PanelState | null>(null)
 
 export function PanelProvider({ children }: { children: ReactNode }) {
   const [leftOpen, setLeftOpen] = useState(true)
-  const [rightOpen, setRightOpen] = useState(false)
+  const [view, setView] = useState<View>("chat")
 
   return (
     <PanelContext.Provider
       value={{
         leftOpen,
-        rightOpen,
+        view,
         toggleLeft: () => setLeftOpen((v) => !v),
-        toggleRight: () => setRightOpen((v) => !v),
-        openRight: () => setRightOpen(true),
-        closeRight: () => setRightOpen(false),
+        setView,
       }}
     >
       {children}

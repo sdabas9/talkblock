@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback, ReactNode } from "react"
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react"
 import { AntelopeClient, ChainInfo } from "@/lib/antelope/client"
 
 const PRESET_CHAINS = [
@@ -52,6 +52,15 @@ export function ChainProvider({ children }: { children: ReactNode }) {
       setConnecting(false)
     }
   }, [])
+
+  // Auto-restore chain from localStorage on mount (set by login page)
+  useEffect(() => {
+    const savedEndpoint = localStorage.getItem("antelope_endpoint")
+    const savedName = localStorage.getItem("antelope_chain_name")
+    if (savedEndpoint) {
+      connect(savedEndpoint, savedName || undefined)
+    }
+  }, [connect])
 
   const disconnect = useCallback(() => {
     setEndpoint(null)
