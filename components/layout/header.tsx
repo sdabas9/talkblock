@@ -2,8 +2,9 @@
 
 import { usePanels } from "@/lib/stores/panel-store"
 import { ChainSelector } from "@/components/chain/chain-selector"
+import { LLMSettings } from "@/components/settings/llm-settings"
 import { Button } from "@/components/ui/button"
-import { PanelLeft, PanelRight, Settings, Wallet } from "lucide-react"
+import { PanelLeft, PanelRight, Wallet } from "lucide-react"
 
 export function Header() {
   const { toggleLeft, toggleRight } = usePanels()
@@ -22,9 +23,7 @@ export function Header() {
           <Wallet className="h-4 w-4 mr-2" />
           Connect Wallet
         </Button>
-        <Button variant="ghost" size="icon" id="settings-btn">
-          <Settings className="h-4 w-4" />
-        </Button>
+        <LLMSettings />
         <Button variant="ghost" size="icon" onClick={toggleRight}>
           <PanelRight className="h-4 w-4" />
         </Button>
