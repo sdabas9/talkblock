@@ -23,21 +23,29 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
 
 export function LeftPanel() {
   const { leftOpen, view } = usePanels()
-  const { chainInfo, chainName, endpoint, hyperionEndpoint, refreshInfo } = useChain()
+  const { chainInfo, chainName, endpoint, hyperionEndpoint } = useChain()
   const { bookmarks, removeBookmark } = useHistory()
   const [chainExpanded, setChainExpanded] = useState(false)
   const [rpcUp, setRpcUp] = useState(false)
   const [hyperionUp, setHyperionUp] = useState(false)
+  const [liveInfo, setLiveInfo] = useState(chainInfo)
 
-  // Check endpoint health + refresh chain info periodically
+  // Sync liveInfo when chainInfo changes (e.g. on connect/disconnect)
+  useEffect(() => { setLiveInfo(chainInfo) }, [chainInfo])
+
+  // Check endpoint health + refresh chain info locally (no global store update)
   useEffect(() => {
     if (!endpoint) { setRpcUp(false); setHyperionUp(false); return }
 
     const check = async () => {
-      // RPC health
+      // RPC health + local info refresh
       try {
         const r = await fetch(`${endpoint}/v1/chain/get_info`, { method: "POST", body: "{}", signal: AbortSignal.timeout(5000) })
         setRpcUp(r.ok)
+        if (r.ok) {
+          const info = await r.json()
+          setLiveInfo(info)
+        }
       } catch { setRpcUp(false) }
 
       // Hyperion health
@@ -49,14 +57,12 @@ export function LeftPanel() {
       } else {
         setHyperionUp(false)
       }
-
-      refreshInfo()
     }
 
     check()
     const id = setInterval(check, 300_000)
     return () => clearInterval(id)
-  }, [endpoint, hyperionEndpoint, refreshInfo])
+  }, [endpoint, hyperionEndpoint])
 
   const handleBookmarkClick = (bookmark: typeof bookmarks[0]) => {
     window.dispatchEvent(new CustomEvent("bookmark-show", { detail: bookmark }))
@@ -77,7 +83,7 @@ export function LeftPanel() {
             <Link2 className="h-3 w-3" />
             Chain
           </h3>
-          {chainInfo ? (
+          {liveInfo ? (
             <div className="text-xs">
               <button
                 onClick={() => setChainExpanded((v) => !v)}
@@ -105,16 +111,16 @@ export function LeftPanel() {
                 <div className="space-y-1.5 mt-2 pt-2 border-t border-border/50">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Head Block</span>
-                    <span className="font-mono">{chainInfo.head_block_num.toLocaleString()}</span>
+                    <span className="font-mono">{liveInfo.head_block_num.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Producer</span>
-                    <span className="font-mono">{chainInfo.head_block_producer}</span>
+                    <span className="font-mono">{liveInfo.head_block_producer}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Chain ID</span>
                     <Badge variant="secondary" className="font-mono text-[9px]">
-                      {chainInfo.chain_id.slice(0, 12)}...
+                      {liveInfo.chain_id.slice(0, 12)}...
                     </Badge>
                   </div>
                 </div>

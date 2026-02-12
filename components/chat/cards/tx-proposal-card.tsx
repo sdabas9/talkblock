@@ -30,6 +30,7 @@ export function TxProposalCard({ data, onTxError }: TxProposalCardProps) {
   const [signing, setSigning] = useState(false)
   const [txResult, setTxResult] = useState<string | null>(null)
   const [txError, setTxError] = useState<string | null>(null)
+  const [dismissed, setDismissed] = useState(false)
   const [editableActions, setEditableActions] = useState<TxAction[]>(
     () => data.actions.map((a) => ({ ...a, data: { ...a.data } }))
   )
@@ -100,6 +101,14 @@ export function TxProposalCard({ data, onTxError }: TxProposalCardProps) {
     }
   }
 
+  if (dismissed) {
+    return (
+      <div className="my-2 text-xs text-muted-foreground/60 italic">
+        Transaction proposal dismissed
+      </div>
+    )
+  }
+
   return (
     <Card className="my-2 max-w-md border-primary/50">
       <CardHeader className="pb-2 pt-3 px-4">
@@ -109,6 +118,16 @@ export function TxProposalCard({ data, onTxError }: TxProposalCardProps) {
           <Badge variant="outline" className="ml-auto text-xs">
             {txResult ? "Broadcast" : txError ? "Failed" : data.status === "pending_signature" ? "Pending" : data.status}
           </Badge>
+          {!txResult && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+              onClick={() => setDismissed(true)}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="px-4 pb-3 space-y-3">

@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react"
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, ReactNode } from "react"
 import { AntelopeClient, ChainInfo } from "@/lib/antelope/client"
 
 const PRESET_CHAINS = [
@@ -95,14 +95,14 @@ export function ChainProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("antelope_hyperion")
   }, [])
 
+  const value = useMemo(() => ({
+    endpoint, hyperionEndpoint, chainInfo, chainName, client,
+    presets: PRESET_CHAINS, connecting, error,
+    connect, disconnect, refreshInfo,
+  }), [endpoint, hyperionEndpoint, chainInfo, chainName, client, connecting, error, connect, disconnect, refreshInfo])
+
   return (
-    <ChainContext.Provider
-      value={{
-        endpoint, hyperionEndpoint, chainInfo, chainName, client,
-        presets: PRESET_CHAINS, connecting, error,
-        connect, disconnect, refreshInfo,
-      }}
-    >
+    <ChainContext.Provider value={value}>
       {children}
     </ChainContext.Provider>
   )
