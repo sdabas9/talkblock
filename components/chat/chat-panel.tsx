@@ -20,7 +20,7 @@ import { ToolResultRenderer } from "./cards/tool-result-renderer"
 
 export function ChatPanel() {
   const { isConfigured, getClientConfig } = useLLM()
-  const { endpoint, chainName } = useChain()
+  const { endpoint, hyperionEndpoint, chainName } = useChain()
   const { accountName } = useWallet()
   const { user } = useAuth()
   const {
@@ -34,13 +34,16 @@ export function ChatPanel() {
   activeConvRef.current = activeConversationId
 
   const endpointRef = useRef(endpoint)
+  const hyperionRef = useRef(hyperionEndpoint)
   const accountRef = useRef(accountName)
   endpointRef.current = endpoint
+  hyperionRef.current = hyperionEndpoint
   accountRef.current = accountName
 
   const customFetch = useCallback(async (input: RequestInfo | URL, init?: RequestInit) => {
     const body = JSON.parse(init?.body as string || "{}")
     body.chainEndpoint = endpointRef.current || ""
+    body.hyperionEndpoint = hyperionRef.current || ""
     body.walletAccount = accountRef.current || ""
     const token = localStorage.getItem("auth_token")
     const headers: Record<string, string> = {

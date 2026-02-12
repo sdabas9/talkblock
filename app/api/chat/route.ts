@@ -6,8 +6,9 @@ import jwt from "jsonwebtoken"
 
 export async function POST(req: Request) {
   const body = await req.json()
-  const { messages, chainEndpoint: chainEp, walletAccount, llmConfig } = body
+  const { messages, chainEndpoint: chainEp, hyperionEndpoint: hyperionEp, walletAccount, llmConfig } = body
   const chainEndpoint = chainEp || ""
+  const hyperionEndpoint = hyperionEp || ""
 
   let llmProvider = ""
   let llmApiKey = ""
@@ -47,7 +48,7 @@ export async function POST(req: Request) {
   }
 
   const llmModel = createLLMModel(llmProvider, llmApiKey, llmModelName)
-  const tools = createChainTools(chainEndpoint || null)
+  const tools = createChainTools(chainEndpoint || null, hyperionEndpoint || null)
 
   const systemPrompt = `You are an Antelope blockchain explorer assistant. You help users understand and interact with Antelope-based blockchains (EOS, WAX, Telos, etc.).
 
@@ -65,6 +66,8 @@ Guidelines:
 - When you receive a [System: ...] message about a chain or wallet change, introduce yourself briefly (1-2 sentences), mention what chain/account they're on, and suggest a few things you can help with. Don't repeat the system message — just respond naturally as a greeting.
 
 ${chainEndpoint ? "Connected chain endpoint: " + chainEndpoint : "No chain connected — inform the user they should connect to a chain to query on-chain data."}
+
+${hyperionEndpoint ? "Hyperion history API is available. You can query full action history, token transfers, account creation history, token holdings across all contracts, and key-to-account lookups using the get_actions, get_transfers, get_created_accounts, get_creator, get_tokens, and get_key_accounts tools." : ""}
 
 ${walletAccount ? `The user's connected wallet account is: ${walletAccount}. When they say "my account", "my balance", etc., use this account name. When building transactions, use this as the "from" account.` : "No wallet connected."}`
 

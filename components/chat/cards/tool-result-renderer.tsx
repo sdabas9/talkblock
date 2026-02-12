@@ -5,6 +5,9 @@ import { BlockCard } from "./block-card"
 import { TransactionCard } from "./transaction-card"
 import { TableCard } from "./table-card"
 import { TxProposalCard } from "./tx-proposal-card"
+import { ActionsCard } from "./actions-card"
+import { TransfersCard } from "./transfers-card"
+import { TokensCard } from "./tokens-card"
 import { useHistory } from "@/lib/stores/history-store"
 import { useChain } from "@/lib/stores/chain-store"
 import { Button } from "@/components/ui/button"
@@ -36,6 +39,18 @@ function getLabel(toolName: string, result: Record<string, any>): string {
       const actions = result.actions || []
       if (actions.length === 1) return `${actions[0].name} on ${actions[0].account}`
       return result.description || `${actions.length}-action Tx`
+    }
+    case "get_actions": {
+      const total = result.total as { value?: number } | undefined
+      return `Actions${total?.value ? ` (${total.value.toLocaleString()})` : ""}`
+    }
+    case "get_transfers": return `Transfers for ${result.account || "??"}`
+    case "get_created_accounts": return `Accounts created by ${result.query_account || "??"}`
+    case "get_creator": return `Creator of ${result.account || "??"}`
+    case "get_tokens": return `Tokens for ${result.account || "??"}`
+    case "get_key_accounts": {
+      const names = result.account_names || []
+      return `Key Accounts (${names.length})`
     }
     default: return toolName
   }
@@ -103,6 +118,51 @@ export function ToolResultRenderer({ toolName, result, onTxError }: ToolResultRe
         )
       case "build_transaction":
         return <TxProposalCard data={result as any} onTxError={onTxError} />
+      case "get_actions":
+        return <ActionsCard data={result as any} />
+      case "get_transfers":
+        return <TransfersCard data={result as any} />
+      case "get_tokens":
+        return <TokensCard data={result as any} />
+      case "get_created_accounts":
+        return (
+          <div className="text-sm bg-muted rounded-md px-3 py-2 my-1 space-y-1">
+            <div><span className="text-muted-foreground">Accounts created by </span><span className="font-medium">{String(result.query_account)}</span></div>
+            <div className="font-mono text-xs">
+              {(result.accounts as Array<{ name?: string; timestamp?: string }> || []).map((a, i) => (
+                <div key={i} className="flex justify-between py-0.5">
+                  <span>{a.name || "??"}</span>
+                  <span className="text-muted-foreground">{a.timestamp ? new Date(a.timestamp).toLocaleDateString() : ""}</span>
+                </div>
+              ))}
+              {(!result.accounts || (result.accounts as unknown[]).length === 0) && <span className="text-muted-foreground">None found</span>}
+            </div>
+          </div>
+        )
+      case "get_creator":
+        return (
+          <div className="text-sm bg-muted rounded-md px-3 py-2 my-1">
+            <span className="text-muted-foreground">Account </span>
+            <span className="font-medium">{String(result.account)}</span>
+            <span className="text-muted-foreground"> was created by </span>
+            <span className="font-medium">{String(result.creator)}</span>
+            {result.timestamp && (
+              <span className="text-muted-foreground"> on {new Date(String(result.timestamp)).toLocaleDateString()}</span>
+            )}
+          </div>
+        )
+      case "get_key_accounts":
+        return (
+          <div className="text-sm bg-muted rounded-md px-3 py-2 my-1">
+            <div className="text-muted-foreground mb-1">Accounts for key:</div>
+            <div className="font-mono text-xs space-y-0.5">
+              {(result.account_names as string[] || []).map((name, i) => (
+                <div key={i}>{name}</div>
+              ))}
+              {(!result.account_names || (result.account_names as unknown[]).length === 0) && <span className="text-muted-foreground">None found</span>}
+            </div>
+          </div>
+        )
       default:
         return <pre className="text-xs bg-muted p-2 rounded overflow-auto my-1">{JSON.stringify(result, null, 2)}</pre>
     }

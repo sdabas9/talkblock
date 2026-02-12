@@ -28,7 +28,7 @@ function ChainContent() {
               size="sm"
               className="justify-start"
               disabled={connecting}
-              onClick={() => connect(chain.url, chain.name)}
+              onClick={() => connect(chain.url, chain.name, chain.hyperion)}
             >
               {chainInfo && chainName === chain.name && (
                 <Check className="h-3 w-3 mr-1 text-green-500" />

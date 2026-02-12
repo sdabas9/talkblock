@@ -1,13 +1,14 @@
 import { tool, type ToolSet } from "ai"
 import { z } from "zod"
 import { AntelopeClient } from "@/lib/antelope/client"
+import { HyperionClient } from "@/lib/antelope/hyperion"
 
-export function createChainTools(endpoint: string | null): ToolSet {
+export function createChainTools(endpoint: string | null, hyperionEndpoint: string | null = null): ToolSet {
   if (!endpoint) return {}
 
   const client = new AntelopeClient(endpoint)
 
-  return {
+  const tools: ToolSet = {
     get_account: tool({
       description:
         "Get detailed information about an Antelope blockchain account including balances, resources (RAM, CPU, NET), and permissions.",
@@ -274,4 +275,149 @@ export function createChainTools(endpoint: string | null): ToolSet {
       },
     }),
   }
+
+  // Add Hyperion-powered tools when a Hyperion endpoint is available
+  if (hyperionEndpoint) {
+    const hyperion = new HyperionClient(hyperionEndpoint)
+
+    tools.get_actions = tool({
+      description:
+        "Get action history for an account from Hyperion. Returns recent actions with full trace data. Can filter by contract:action.",
+      inputSchema: z.object({
+        account: z.string().describe("The account name to get actions for"),
+        filter: z.string().optional().describe("Filter by contract:action (e.g. 'eosio.token:transfer')"),
+        limit: z.number().optional().describe("Max results to return (default 20)"),
+        skip: z.number().optional().describe("Number of results to skip for pagination"),
+        after: z.string().optional().describe("Only actions after this ISO8601 date"),
+        before: z.string().optional().describe("Only actions before this ISO8601 date"),
+      }),
+      execute: async ({ account, filter, limit, skip, after, before }) => {
+        try {
+          const result = await hyperion.getActions({
+            account,
+            filter,
+            limit: limit || 20,
+            skip,
+            after,
+            before,
+            simple: true,
+          })
+          return {
+            actions: result.simple_actions || result.actions || [],
+            total: result.total || { value: 0, relation: "eq" },
+          }
+        } catch (e) {
+          return { error: e instanceof Error ? e.message : "Failed to fetch actions" }
+        }
+      },
+    })
+
+    tools.get_transfers = tool({
+      description:
+        "Get token transfer history for an account. Shows all incoming and outgoing transfers.",
+      inputSchema: z.object({
+        account: z.string().describe("The account to get transfers for"),
+        symbol: z.string().optional().describe("Filter by token symbol (e.g. 'EOS')"),
+        contract: z.string().optional().describe("Filter by token contract (default 'eosio.token')"),
+        limit: z.number().optional().describe("Max results to return (default 20)"),
+        after: z.string().optional().describe("Only transfers after this ISO8601 date"),
+        before: z.string().optional().describe("Only transfers before this ISO8601 date"),
+      }),
+      execute: async ({ account, contract, limit, after, before }) => {
+        try {
+          // Use get_actions with transfer filter — more widely supported than get_transfers
+          const filter = `${contract || "eosio.token"}:transfer`
+          const result = await hyperion.getActions({
+            account,
+            filter,
+            limit: limit || 20,
+            after,
+            before,
+            simple: true,
+          })
+          const actions = result.simple_actions || result.actions || []
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const transfers = actions.map((a: any) => ({
+            timestamp: a.timestamp || a["@timestamp"],
+            from: a.data?.from,
+            to: a.data?.to,
+            quantity: a.data?.quantity,
+            memo: a.data?.memo,
+            contract: a.contract,
+            block: a.block,
+          }))
+          return { transfers, account }
+        } catch (e) {
+          return { error: e instanceof Error ? e.message : "Failed to fetch transfers" }
+        }
+      },
+    })
+
+    tools.get_created_accounts = tool({
+      description: "Get all accounts that were created by a given account.",
+      inputSchema: z.object({
+        account: z.string().describe("The creator account name"),
+      }),
+      execute: async ({ account }) => {
+        try {
+          const result = await hyperion.getCreatedAccounts(account)
+          return { accounts: result.accounts || [], query_account: account }
+        } catch (e) {
+          return { error: e instanceof Error ? e.message : "Failed to fetch created accounts" }
+        }
+      },
+    })
+
+    tools.get_creator = tool({
+      description: "Find out who created a specific account and when.",
+      inputSchema: z.object({
+        account: z.string().describe("The account name to look up the creator for"),
+      }),
+      execute: async ({ account }) => {
+        try {
+          const result = await hyperion.getCreator(account)
+          return {
+            account,
+            creator: result.creator,
+            timestamp: result.timestamp,
+          }
+        } catch (e) {
+          return { error: e instanceof Error ? e.message : "Failed to fetch creator" }
+        }
+      },
+    })
+
+    tools.get_tokens = tool({
+      description:
+        "Get all token balances held by an account across all contracts. Richer than get_currency_balance as it discovers all tokens automatically.",
+      inputSchema: z.object({
+        account: z.string().describe("The account name to get token balances for"),
+      }),
+      execute: async ({ account }) => {
+        try {
+          const result = await hyperion.getTokens(account)
+          return { tokens: result.tokens || [], account }
+        } catch (e) {
+          return { error: e instanceof Error ? e.message : "Failed to fetch tokens" }
+        }
+      },
+    })
+
+    tools.get_key_accounts = tool({
+      description: "Get all accounts associated with a given public key.",
+      inputSchema: z.object({
+        public_key: z.string().describe("The public key to look up (e.g. 'EOS6MR...')"),
+      }),
+      execute: async ({ public_key }) => {
+        try {
+          const result = await hyperion.getKeyAccounts(public_key)
+          return { account_names: result.account_names || [] }
+        } catch (e) {
+          return { error: e instanceof Error ? e.message : "Failed to fetch key accounts" }
+        }
+      },
+    })
+  }
+
+  return tools
 }
