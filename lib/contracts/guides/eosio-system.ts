@@ -98,6 +98,7 @@ REX lets users lend tokens to earn staking rewards, and renters can cheaply get 
 - data:
   - owner: (account withdrawing)
   - amount: "10.0000 EOS"
+- IMPORTANT: Before building withdraw, ALWAYS query rexfund first (get_table_rows code="eosio", table="rexfund", scope="eosio", lower_bound=account, upper_bound=account) to get the user's actual available balance. Use that value for the amount field.
 
 ### buyrex — Buy REX tokens (lend resources to earn yield)
 - account: "eosio"
@@ -114,6 +115,7 @@ REX lets users lend tokens to earn staking rewards, and renters can cheaply get 
   - from: (account selling)
   - rex: "1000.0000 REX" (amount of REX to sell — note REX has 4 decimal precision)
 - NOTE: REX must be matured (4 days after purchase). If not enough liquid REX is available, the sell order is queued.
+- IMPORTANT: Before building sellrex, ALWAYS query rexbal first (get_table_rows code="eosio", table="rexbal", scope="eosio", lower_bound=account, upper_bound=account) to get the user's actual rex_balance. Use that value for the rex field.
 
 ### unstaketorex — Convert staked tokens directly to REX
 - account: "eosio"
@@ -163,14 +165,17 @@ REX lets users lend tokens to earn staking rewards, and renters can cheaply get 
 ### Typical REX workflow
 1. deposit → buyrex (to lend and earn)
 2. Wait 4 days for maturity
-3. sellrex → withdraw (to get tokens back with yield)
+3. Query rexbal to get actual rex_balance → sellrex with that amount
+4. Query rexfund to get available balance → withdraw with that amount
 
 ### Querying REX
-- Table: "eosio" / "rexbal" / scope = "eosio" → REX balances per account
-- Table: "eosio" / "rexpool" / scope = "eosio" → global REX pool stats
-- Table: "eosio" / "rexfund" / scope = "eosio" → deposited funds not yet in REX
-- Table: "eosio" / "cpuloan" / scope = "eosio" → active CPU rental loans
-- Table: "eosio" / "netloan" / scope = "eosio" → active NET rental loans
+All REX tables use code="eosio" and scope="eosio". To get a specific account's row, set BOTH lower_bound AND upper_bound to the account name.
+
+- get_table_rows(code="eosio", table="rexbal", scope="eosio", lower_bound="<account>", upper_bound="<account>") → REX balance for a specific account (rex_balance, matured_rex, vote_stake)
+- get_table_rows(code="eosio", table="rexfund", scope="eosio", lower_bound="<account>", upper_bound="<account>") → deposited funds not yet converted to REX
+- get_table_rows(code="eosio", table="rexpool", scope="eosio") → global REX pool stats (no bounds needed, single row)
+- get_table_rows(code="eosio", table="cpuloan", scope="eosio") → active CPU rental loans
+- get_table_rows(code="eosio", table="netloan", scope="eosio") → active NET rental loans
 
 ## Powerup (EOS Mainnet)
 
