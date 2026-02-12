@@ -319,6 +319,7 @@ export function createChainTools(endpoint: string | null, hyperionEndpoint: stri
           })
           return {
             actions,
+            account,
             total: result.total || { value: 0, relation: "eq" },
           }
         } catch (e) {

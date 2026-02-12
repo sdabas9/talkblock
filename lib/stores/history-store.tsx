@@ -19,6 +19,7 @@ interface HistoryState {
   removeBookmark: (id: string) => Promise<void>
   isBookmarked: (toolName: string, label: string) => boolean
   updateBookmarkLabel: (id: string, label: string) => void
+  updateBookmarkResult: (id: string, result: Record<string, any>) => void
 }
 
 const HistoryContext = createContext<HistoryState | null>(null)
@@ -121,6 +122,22 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
     return bookmarks.some((b) => b.tool_name === toolName && b.label === label)
   }, [bookmarks])
 
+  const updateBookmarkResult = useCallback((id: string, result: Record<string, any>) => {
+    const token = localStorage.getItem("auth_token")
+    setBookmarks((prev) => {
+      const updated = prev.map((b) => (b.id === id ? { ...b, result } : b))
+      if (!token) saveLocalBookmarks(updated)
+      return updated
+    })
+    if (token) {
+      fetch(`/api/bookmarks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ result }),
+      }).catch(console.error)
+    }
+  }, [])
+
   const updateBookmarkLabel = useCallback((id: string, label: string) => {
     const token = localStorage.getItem("auth_token")
     setBookmarks((prev) => {
@@ -138,7 +155,7 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <HistoryContext.Provider value={{ bookmarks, addBookmark, removeBookmark, isBookmarked, updateBookmarkLabel }}>
+    <HistoryContext.Provider value={{ bookmarks, addBookmark, removeBookmark, isBookmarked, updateBookmarkLabel, updateBookmarkResult }}>
       {children}
     </HistoryContext.Provider>
   )

@@ -2,7 +2,7 @@
 
 import { useChat, UIMessage } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
-import { useRef, useEffect, useMemo, useCallback } from "react"
+import { useRef, useEffect, useMemo, useCallback, useState } from "react"
 import { ChatMessage } from "./chat-message"
 import { ChatInput } from "./chat-input"
 import { MarkdownContent } from "./markdown-content"
@@ -11,16 +11,20 @@ import { useChain } from "@/lib/stores/chain-store"
 import { useWallet } from "@/lib/stores/wallet-store"
 import { useAuth } from "@/lib/stores/auth-store"
 import { useConversations } from "@/lib/stores/conversation-store"
+import { useCredits } from "@/lib/stores/credits-store"
 import { LLMSettings } from "@/components/settings/llm-settings"
+import { PurchaseCreditsDialog } from "@/components/billing/purchase-credits-dialog"
 import { Button } from "@/components/ui/button"
-import { Bot, MessageSquare, Settings } from "lucide-react"
+import { Bot, Settings, Wallet, Key, AlertCircle } from "lucide-react"
 import { Avatar } from "@/components/ui/avatar"
-import { isToolUIPart, getToolName } from "ai"
+import { isToolUIPart, isReasoningUIPart, getToolName } from "ai"
 import { ToolResultRenderer } from "./cards/tool-result-renderer"
+import { ReasoningContent } from "./reasoning-content"
+import { refetchToolData, REFRESHABLE_TOOLS, formatAge } from "@/lib/antelope/refetch"
 
 export function ChatPanel() {
-  const { isConfigured, getClientConfig } = useLLM()
-  const { endpoint, hyperionEndpoint, chainName } = useChain()
+  const { isConfigured, getClientConfig, llmMode } = useLLM()
+  const { endpoint, hyperionEndpoint, chainName, chainInfo } = useChain()
   const { accountName } = useWallet()
   const { user } = useAuth()
   const {
@@ -29,22 +33,27 @@ export function ChatPanel() {
     saveMessage,
     loadMessages,
   } = useConversations()
+  const credits = useCredits()
   const scrollRef = useRef<HTMLDivElement>(null)
   const activeConvRef = useRef(activeConversationId)
   activeConvRef.current = activeConversationId
+  const [outOfCredits, setOutOfCredits] = useState(false)
 
   const endpointRef = useRef(endpoint)
   const hyperionRef = useRef(hyperionEndpoint)
   const accountRef = useRef(accountName)
+  const chainIdRef = useRef(chainInfo?.chain_id)
   endpointRef.current = endpoint
   hyperionRef.current = hyperionEndpoint
   accountRef.current = accountName
+  chainIdRef.current = chainInfo?.chain_id
 
   const customFetch = useCallback(async (input: RequestInfo | URL, init?: RequestInit) => {
     const body = JSON.parse(init?.body as string || "{}")
     body.chainEndpoint = endpointRef.current || ""
     body.hyperionEndpoint = hyperionRef.current || ""
     body.walletAccount = accountRef.current || ""
+    body.chainId = chainIdRef.current || ""
     const token = localStorage.getItem("auth_token")
     const headers: Record<string, string> = {
       ...Object.fromEntries(new Headers(init?.headers).entries()),
@@ -57,11 +66,20 @@ export function ChatPanel() {
     if (clientConfig) {
       body.llmConfig = clientConfig
     }
-    return fetch(input, {
+    const response = await fetch(input, {
       ...init,
       headers,
       body: JSON.stringify(body),
     })
+
+    // Handle 402 (out of credits)
+    if (response.status === 402) {
+      setOutOfCredits(true)
+      throw new Error("Out of credits")
+    }
+
+    setOutOfCredits(false)
+    return response
   }, [getClientConfig])
 
   const transport = useMemo(
@@ -76,6 +94,24 @@ export function ChatPanel() {
   const { messages, sendMessage, setMessages, status } = useChat({ transport })
 
   const isLoading = status === "submitted" || status === "streaming"
+
+  // Refresh credits after each completed chat response
+  const prevStatusRef = useRef(status)
+  useEffect(() => {
+    if (prevStatusRef.current === "streaming" && status === "ready") {
+      if (user && llmMode === "builtin") {
+        credits.refresh()
+      }
+    }
+    prevStatusRef.current = status
+  }, [status, user, llmMode, credits])
+
+  // Clear out-of-credits banner when balance is replenished
+  useEffect(() => {
+    if (outOfCredits && (credits.balanceTokens > 0 || credits.freeRemaining > 0)) {
+      setOutOfCredits(false)
+    }
+  }, [outOfCredits, credits.balanceTokens, credits.freeRemaining])
 
   // Load messages when active conversation changes
   useEffect(() => {
@@ -118,6 +154,7 @@ export function ChatPanel() {
 
   // Auto-create conversation on first message send
   const handleSend = useCallback(async (text: string) => {
+    setOutOfCredits(false)
     if (!activeConvRef.current) {
       const convId = await createConversation(chainName || undefined, endpoint || undefined)
       activeConvRef.current = convId
@@ -140,15 +177,58 @@ export function ChatPanel() {
     }
   }, [endpoint, accountName]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Listen for bookmark queries from left panel
+  // Listen for bookmark card display from left panel
   useEffect(() => {
-    const handler = (e: Event) => {
-      const query = (e as CustomEvent).detail
-      if (typeof query === "string" && query) handleSend(query)
+    const handler = async (e: Event) => {
+      const bookmark = (e as CustomEvent).detail
+      if (!bookmark?.tool_name || !bookmark?.result) return
+
+      let resultData = bookmark.result
+      let refreshed = false
+      // Refresh with latest data if possible
+      if (REFRESHABLE_TOOLS.has(bookmark.tool_name) && bookmark.chain_endpoint) {
+        try {
+          resultData = await refetchToolData(
+            bookmark.tool_name,
+            bookmark.result,
+            bookmark.chain_endpoint,
+            hyperionRef.current || null
+          )
+          refreshed = true
+        } catch {
+          // Fall back to stored data on error
+        }
+      }
+
+      const now = new Date()
+      const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+      const staleNote = refreshed
+        ? `Refreshed at ${timeStr}`
+        : `Saved ${formatAge(bookmark.created_at)}`
+
+      const cardMessage: UIMessage = {
+        id: `bookmark-${bookmark.id}-${Date.now()}`,
+        role: "assistant",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        parts: [
+          {
+            type: `tool-${bookmark.tool_name}`,
+            toolCallId: `bookmark-${bookmark.id}`,
+            state: "output-available",
+            input: {},
+            output: resultData,
+          } as any,
+          {
+            type: "text",
+            text: staleNote,
+          },
+        ],
+      }
+      setMessages((prev) => [...prev, cardMessage])
     }
-    window.addEventListener("bookmark-query", handler)
-    return () => window.removeEventListener("bookmark-query", handler)
-  }, [handleSend])
+    window.addEventListener("bookmark-show", handler)
+    return () => window.removeEventListener("bookmark-show", handler)
+  }, [setMessages])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -166,14 +246,22 @@ export function ChatPanel() {
         </svg>
         <h2 className="text-xl font-semibold">Welcome to Talkblock</h2>
         <p className="text-muted-foreground text-center max-w-md">
-          Configure your LLM provider to start chatting with the blockchain.
+          Chat with the blockchain using AI. Connect a wallet for 5 free requests per day, or bring your own API key.
         </p>
-        <LLMSettings trigger={
-          <Button variant="outline" size="lg">
-            <Settings className="h-4 w-4 mr-2" />
-            Configure LLM
-          </Button>
-        } />
+        <div className="flex gap-3">
+          <LLMSettings trigger={
+            <Button variant="default" size="lg">
+              <Wallet className="h-4 w-4 mr-2" />
+              Connect Wallet
+            </Button>
+          } />
+          <LLMSettings trigger={
+            <Button variant="outline" size="lg">
+              <Key className="h-4 w-4 mr-2" />
+              Use Own API Key
+            </Button>
+          } />
+        </div>
       </div>
     )
   }
@@ -230,9 +318,20 @@ export function ChatPanel() {
                 {message.parts.map((part, i) => {
                   if (part.type === "text") {
                     if (message.role === "assistant") {
+                      // Bookmark age labels — render as subtle timestamp
+                      if (part.text.startsWith("Refreshed at ") || part.text.startsWith("Saved ")) {
+                        return (
+                          <span key={i} className="text-[11px] text-muted-foreground/70 italic">
+                            {part.text}
+                          </span>
+                        )
+                      }
                       return <MarkdownContent key={i} content={part.text} />
                     }
                     return <span key={i}>{part.text}</span>
+                  }
+                  if (isReasoningUIPart(part)) {
+                    return null
                   }
                   if (isToolUIPart(part)) {
                     const toolName = getToolName(part)
@@ -258,27 +357,43 @@ export function ChatPanel() {
             ))
           )}
 
-          {isLoading && (
-            <div className="flex gap-3 px-4 py-3">
-              <Avatar className="h-8 w-8 border flex items-center justify-center bg-primary/10 shrink-0">
-                <Bot className="h-4 w-4" />
-              </Avatar>
-              <div className="flex items-center gap-1 px-4 py-2">
-                <div
-                  className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce"
-                  style={{ animationDelay: "0ms" }}
-                />
-                <div
-                  className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce"
-                  style={{ animationDelay: "150ms" }}
-                />
-                <div
-                  className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce"
-                  style={{ animationDelay: "300ms" }}
-                />
+          {outOfCredits && (
+            <div className="mx-4 my-3 p-4 rounded-lg border border-yellow-500/20 bg-yellow-500/5">
+              <div className="flex items-center gap-2 text-sm font-medium text-yellow-600 dark:text-yellow-400">
+                <AlertCircle className="h-4 w-4" />
+                Out of credits
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                You&apos;ve used all 5 free requests today. Purchase credits to continue chatting.
+              </p>
+              <div className="mt-3">
+                <PurchaseCreditsDialog />
               </div>
             </div>
           )}
+
+          {isLoading && (() => {
+            const lastMsg = messages[messages.length - 1]
+            const hasContent = lastMsg?.role === "assistant" && lastMsg.parts.length > 0
+            return hasContent ? (
+              <div className="flex items-center gap-1.5 px-8 py-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: "0ms" }} />
+                <div className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: "150ms" }} />
+                <div className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: "300ms" }} />
+              </div>
+            ) : (
+              <div className="flex gap-3 px-4 py-3">
+                <Avatar className="h-8 w-8 border flex items-center justify-center bg-primary/10 shrink-0">
+                  <Bot className="h-4 w-4" />
+                </Avatar>
+                <div className="flex items-center gap-1 px-4 py-2">
+                  <div className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <div className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <div className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "300ms" }} />
+                </div>
+              </div>
+            )
+          })()}
         </div>
       </div>
 

@@ -26,7 +26,7 @@ export function ActionsCard({ data }: ActionsCardProps) {
 
   if (!actions || actions.length === 0) {
     return (
-      <Card className="my-2 max-w-lg">
+      <Card className="my-2">
         <CardContent className="px-4 py-3 text-sm text-muted-foreground">
           No actions found
         </CardContent>
@@ -35,7 +35,7 @@ export function ActionsCard({ data }: ActionsCardProps) {
   }
 
   return (
-    <Card className="my-2 max-w-lg overflow-hidden">
+    <Card className="my-2 overflow-hidden">
       <CardHeader className="pb-2 pt-3 px-4">
         <CardTitle className="text-sm flex items-center gap-2">
           <Activity className="h-4 w-4" />

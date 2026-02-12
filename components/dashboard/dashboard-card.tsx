@@ -1,17 +1,22 @@
 "use client"
 
-import { useState, useRef, DragEvent } from "react"
+import { useState, useRef, useCallback, useEffect, DragEvent } from "react"
 import { AccountCard } from "@/components/chat/cards/account-card"
 import { BlockCard } from "@/components/chat/cards/block-card"
 import { TransactionCard } from "@/components/chat/cards/transaction-card"
 import { TableCard } from "@/components/chat/cards/table-card"
 import { TxProposalCard } from "@/components/chat/cards/tx-proposal-card"
+import { ActionsCard } from "@/components/chat/cards/actions-card"
+import { TransfersCard } from "@/components/chat/cards/transfers-card"
+import { TokensCard } from "@/components/chat/cards/tokens-card"
 import { useDashboard } from "@/lib/stores/dashboard-store"
 import { useHistory } from "@/lib/stores/history-store"
+import { useChain } from "@/lib/stores/chain-store"
+import { refetchToolData, REFRESHABLE_TOOLS, formatAge } from "@/lib/antelope/refetch"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { GripVertical, X, Pencil, Check, User, Box, FileText, Database, Coins, Shield, Users, FileSignature } from "lucide-react"
+import { GripVertical, X, Pencil, Check, RefreshCw, User, Box, FileText, Database, Coins, Shield, Users, FileSignature, Activity, ArrowLeftRight, Key, UserPlus, AlertCircle } from "lucide-react"
 
 const TOOL_ICONS: Record<string, React.ElementType> = {
   get_account: User,
@@ -22,6 +27,12 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
   get_abi: Shield,
   get_producers: Users,
   build_transaction: FileSignature,
+  get_actions: Activity,
+  get_transfers: ArrowLeftRight,
+  get_tokens: Coins,
+  get_created_accounts: UserPlus,
+  get_creator: User,
+  get_key_accounts: Key,
 }
 
 const TOOL_TYPE_LABEL: Record<string, string> = {
@@ -33,6 +44,12 @@ const TOOL_TYPE_LABEL: Record<string, string> = {
   get_abi: "ABI",
   get_producers: "Producers",
   build_transaction: "Proposal",
+  get_actions: "Actions",
+  get_transfers: "Transfers",
+  get_tokens: "Tokens",
+  get_created_accounts: "Accounts",
+  get_creator: "Creator",
+  get_key_accounts: "Key",
 }
 
 interface DashboardCardProps {
@@ -43,6 +60,7 @@ interface DashboardCardProps {
     result: Record<string, any>
     chain_name: string | null
     chain_endpoint: string | null
+    created_at: string
   }
   onDragStart: (e: DragEvent, id: string) => void
   onDragOver: (e: DragEvent) => void
@@ -80,6 +98,51 @@ function renderCardContent(toolName: string, result: Record<string, any>) {
       )
     case "build_transaction":
       return <TxProposalCard data={result as any} />
+    case "get_actions":
+      return <ActionsCard data={result as any} />
+    case "get_transfers":
+      return <TransfersCard data={result as any} />
+    case "get_tokens":
+      return <TokensCard data={result as any} />
+    case "get_created_accounts":
+      return (
+        <div className="text-sm bg-muted rounded-md px-3 py-2 space-y-1">
+          <div><span className="text-muted-foreground">Accounts created by </span><span className="font-medium">{String(result.query_account)}</span></div>
+          <div className="font-mono text-xs">
+            {(result.accounts as Array<{ name?: string; timestamp?: string }> || []).map((a, i) => (
+              <div key={i} className="flex justify-between py-0.5">
+                <span>{a.name || "??"}</span>
+                <span className="text-muted-foreground">{a.timestamp ? new Date(a.timestamp).toLocaleDateString() : ""}</span>
+              </div>
+            ))}
+            {(!result.accounts || (result.accounts as unknown[]).length === 0) && <span className="text-muted-foreground">None found</span>}
+          </div>
+        </div>
+      )
+    case "get_creator":
+      return (
+        <div className="text-sm bg-muted rounded-md px-3 py-2">
+          <span className="text-muted-foreground">Account </span>
+          <span className="font-medium">{String(result.account)}</span>
+          <span className="text-muted-foreground"> was created by </span>
+          <span className="font-medium">{String(result.creator)}</span>
+          {result.timestamp && (
+            <span className="text-muted-foreground"> on {new Date(String(result.timestamp)).toLocaleDateString()}</span>
+          )}
+        </div>
+      )
+    case "get_key_accounts":
+      return (
+        <div className="text-sm bg-muted rounded-md px-3 py-2">
+          <div className="text-muted-foreground mb-1">Accounts for key:</div>
+          <div className="font-mono text-xs space-y-0.5">
+            {(result.account_names as string[] || []).map((name, i) => (
+              <div key={i}>{name}</div>
+            ))}
+            {(!result.account_names || (result.account_names as unknown[]).length === 0) && <span className="text-muted-foreground">None found</span>}
+          </div>
+        </div>
+      )
     default:
       return <pre className="text-xs bg-muted p-2 rounded overflow-auto">{JSON.stringify(result, null, 2)}</pre>
   }
@@ -87,12 +150,51 @@ function renderCardContent(toolName: string, result: Record<string, any>) {
 
 export function DashboardCard({ bookmark, onDragStart, onDragOver, onDrop }: DashboardCardProps) {
   const { customLabels, setCustomLabel, removeCustomLabel } = useDashboard()
-  const { removeBookmark, updateBookmarkLabel } = useHistory()
+  const { removeBookmark, updateBookmarkLabel, updateBookmarkResult } = useHistory()
+  const { hyperionEndpoint } = useChain()
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState("")
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshError, setRefreshError] = useState<string | null>(null)
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const displayLabel = customLabels[bookmark.id] || bookmark.label
+  const canRefresh = REFRESHABLE_TOOLS.has(bookmark.tool_name) && !!bookmark.chain_endpoint
+
+  const handleRefresh = useCallback(async () => {
+    if (!bookmark.chain_endpoint || refreshing) return
+    setRefreshing(true)
+    setRefreshError(null)
+    try {
+      const newResult = await refetchToolData(
+        bookmark.tool_name,
+        bookmark.result,
+        bookmark.chain_endpoint,
+        hyperionEndpoint
+      )
+      if (!newResult.error) {
+        updateBookmarkResult(bookmark.id, newResult)
+        setLastRefreshedAt(new Date().toISOString())
+      } else {
+        setRefreshError(newResult.error)
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Refresh failed"
+      setRefreshError(msg === "Failed to fetch" ? "Chain endpoint unreachable" : msg)
+    } finally {
+      setRefreshing(false)
+    }
+  }, [bookmark, hyperionEndpoint, refreshing, updateBookmarkResult])
+
+  // Auto-refresh on mount
+  const didAutoRefresh = useRef(false)
+  useEffect(() => {
+    if (!didAutoRefresh.current && canRefresh) {
+      didAutoRefresh.current = true
+      handleRefresh()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const startEditing = () => {
     setEditValue(displayLabel)
@@ -163,6 +265,17 @@ export function DashboardCard({ bookmark, onDragStart, onDragOver, onDrop }: Das
             {bookmark.chain_name.split(" ")[0]}
           </Badge>
         )}
+        {canRefresh && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"
@@ -172,8 +285,19 @@ export function DashboardCard({ bookmark, onDragStart, onDragOver, onDrop }: Das
           <X className="h-3 w-3" />
         </Button>
       </div>
+      {refreshError && (
+        <div className="px-3 py-2 text-xs text-red-500 bg-red-500/5 border-b flex items-center gap-1.5">
+          <AlertCircle className="h-3 w-3 shrink-0" />
+          {refreshError}
+        </div>
+      )}
       <div className="p-3 overflow-auto max-h-96 group">
         {renderCardContent(bookmark.tool_name, bookmark.result)}
+      </div>
+      <div className="px-3 py-1.5 border-t text-[11px] text-muted-foreground/70 italic">
+        {lastRefreshedAt
+          ? `Refreshed ${formatAge(lastRefreshedAt)}`
+          : `Saved ${formatAge(bookmark.created_at)}`}
       </div>
     </div>
   )

@@ -3,8 +3,11 @@
 import { usePanels } from "@/lib/stores/panel-store"
 import { useAuth } from "@/lib/stores/auth-store"
 import { useConversations } from "@/lib/stores/conversation-store"
+import { useLLM } from "@/lib/stores/llm-store"
+import { useCredits } from "@/lib/stores/credits-store"
 import { ChainSelector } from "@/components/chain/chain-selector"
 import { LLMSettings } from "@/components/settings/llm-settings"
+import { UsageSummary } from "@/components/billing/usage-summary"
 import { WalletButton } from "@/components/wallet/wallet-button"
 import { Button } from "@/components/ui/button"
 import {
@@ -35,10 +38,31 @@ function useTheme() {
   return { dark, toggle }
 }
 
+function UsageIndicator() {
+  const { user } = useAuth()
+  const { llmMode } = useLLM()
+  const { freeRemaining, balanceTokens } = useCredits()
+
+  if (!user || llmMode !== "builtin") return null
+
+  return (
+    <span className="text-xs text-muted-foreground hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded bg-muted">
+      {freeRemaining > 0 ? (
+        <>{freeRemaining} free left</>
+      ) : balanceTokens > 0 ? (
+        <>{Math.round(balanceTokens / 1000)}k tokens</>
+      ) : (
+        <span className="text-yellow-600 dark:text-yellow-400">No credits</span>
+      )}
+    </span>
+  )
+}
+
 export function Header() {
   const { toggleLeft, view, setView } = usePanels()
   const theme = useTheme()
   const { user } = useAuth()
+  const { llmMode } = useLLM()
   const { conversations, activeConversationId, setActiveConversation, createConversation, deleteConversation } = useConversations()
 
   return (
@@ -58,20 +82,29 @@ export function Header() {
               <Settings className="h-4 w-4" />
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
+          <DialogContent className="max-w-lg max-h-[85vh] flex flex-col gap-0 p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Settings</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-medium mb-2">Chain Connection</h3>
+            <div className="overflow-y-auto px-6 pb-6 space-y-6">
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Chain Connection</h3>
                 <ChainSelector inline />
-              </div>
+              </section>
               <Separator />
-              <div>
-                <h3 className="text-sm font-medium mb-2">LLM Provider</h3>
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">LLM Provider</h3>
                 <LLMSettings inline />
-              </div>
+              </section>
+              {user && llmMode === "builtin" && (
+                <>
+                  <Separator />
+                  <section>
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Usage & Credits</h3>
+                    <UsageSummary />
+                  </section>
+                </>
+              )}
             </div>
           </DialogContent>
         </Dialog>
@@ -100,6 +133,7 @@ export function Header() {
         </div>
       </div>
       <div className="flex items-center gap-2">
+        <UsageIndicator />
         {user && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

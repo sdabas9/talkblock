@@ -1,6 +1,6 @@
 "use client"
 
-import { useLLM, LLMProviderType } from "@/lib/stores/llm-store"
+import { useLLM, LLMProviderType, CHUTES_MODEL_LABELS } from "@/lib/stores/llm-store"
 import { useAuth } from "@/lib/stores/auth-store"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
@@ -15,13 +15,56 @@ import { Badge } from "@/components/ui/badge"
 import { Settings, Save, Loader2, Check } from "lucide-react"
 import { useState } from "react"
 
-const PROVIDERS: { value: LLMProviderType; label: string }[] = [
+const BYOK_PROVIDERS: { value: LLMProviderType; label: string }[] = [
   { value: "anthropic", label: "Anthropic (Claude)" },
   { value: "openai", label: "OpenAI (GPT)" },
   { value: "google", label: "Google (Gemini)" },
 ]
 
-function LLMContent() {
+function BuiltinPanel() {
+  const { config, setModel, getModelsForProvider, isConfigured } = useLLM()
+  const { user } = useAuth()
+
+  return (
+    <div className="space-y-4">
+      {!user && (
+        <div className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+          Connect a wallet to use the built-in AI. 5 free requests per day included.
+        </div>
+      )}
+
+      <div>
+        <Label>Model</Label>
+        <Select
+          value={config?.model || ""}
+          onValueChange={setModel}
+        >
+          <SelectTrigger className="mt-1">
+            <SelectValue placeholder="Select a model" />
+          </SelectTrigger>
+          <SelectContent>
+            {getModelsForProvider("chutes").map((m) => (
+              <SelectItem key={m} value={m}>
+                {CHUTES_MODEL_LABELS[m] || m}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-muted-foreground">Status:</span>
+        {isConfigured ? (
+          <Badge variant="default" className="bg-green-600">Active</Badge>
+        ) : (
+          <Badge variant="secondary">Connect wallet</Badge>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function BYOKPanel() {
   const { config, hasApiKey, isConfigured, setProvider, setApiKey, setModel, getModelsForProvider } = useLLM()
   const { user } = useAuth()
   const [apiKeyInput, setApiKeyInput] = useState("")
@@ -41,19 +84,22 @@ function LLMContent() {
     }
   }
 
+  // Filter out chutes from BYOK providers
+  const provider = config?.provider && config.provider !== "chutes" ? config.provider : ""
+
   return (
     <div className="space-y-4">
       <div>
         <Label>Provider</Label>
         <Select
-          value={config?.provider || ""}
+          value={provider}
           onValueChange={(v) => setProvider(v as LLMProviderType)}
         >
           <SelectTrigger className="mt-1">
             <SelectValue placeholder="Select a provider" />
           </SelectTrigger>
           <SelectContent>
-            {PROVIDERS.map((p) => (
+            {BYOK_PROVIDERS.map((p) => (
               <SelectItem key={p.value} value={p.value}>
                 {p.label}
               </SelectItem>
@@ -61,7 +107,7 @@ function LLMContent() {
           </SelectContent>
         </Select>
       </div>
-      {config?.provider && (
+      {provider && (
         <>
           <div>
             <Label>API Key</Label>
@@ -93,12 +139,12 @@ function LLMContent() {
           </div>
           <div>
             <Label>Model</Label>
-            <Select value={config.model} onValueChange={setModel}>
+            <Select value={config?.model || ""} onValueChange={setModel}>
               <SelectTrigger className="mt-1">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {getModelsForProvider(config.provider).map((m) => (
+                {getModelsForProvider(provider as LLMProviderType).map((m) => (
                   <SelectItem key={m} value={m}>
                     {m}
                   </SelectItem>
@@ -116,6 +162,39 @@ function LLMContent() {
           <Badge variant="secondary">Not configured</Badge>
         )}
       </div>
+    </div>
+  )
+}
+
+function LLMContent() {
+  const { llmMode, setLLMMode } = useLLM()
+
+  return (
+    <div className="space-y-4">
+      <div className="flex rounded-md border overflow-hidden">
+        <button
+          className={`flex-1 py-1.5 px-3 text-sm font-medium transition-colors ${
+            llmMode === "builtin"
+              ? "bg-primary text-primary-foreground"
+              : "bg-background hover:bg-muted text-muted-foreground"
+          }`}
+          onClick={() => setLLMMode("builtin")}
+        >
+          Built-in (Free)
+        </button>
+        <button
+          className={`flex-1 py-1.5 px-3 text-sm font-medium transition-colors ${
+            llmMode === "byok"
+              ? "bg-primary text-primary-foreground"
+              : "bg-background hover:bg-muted text-muted-foreground"
+          }`}
+          onClick={() => setLLMMode("byok")}
+        >
+          Bring Your Own Key
+        </button>
+      </div>
+
+      {llmMode === "builtin" ? <BuiltinPanel /> : <BYOKPanel />}
     </div>
   )
 }

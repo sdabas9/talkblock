@@ -1,54 +1,84 @@
-import { streamText, convertToModelMessages, stepCountIs } from "ai"
+import { streamText, convertToModelMessages, stepCountIs, wrapLanguageModel, extractReasoningMiddleware } from "ai"
 import { createLLMModel } from "@/lib/llm/provider"
 import { createChainTools } from "@/lib/llm/tools"
 import { optimizeMessagesForLLM } from "@/lib/llm/optimize-messages"
 import { createAdminClient } from "@/lib/supabase/server"
+import { checkUsageAllowance, recordUsage } from "@/lib/billing/credits"
+import { getAppConfig } from "@/lib/config"
 import jwt from "jsonwebtoken"
 
 export async function POST(req: Request) {
   const body = await req.json()
-  const { messages, chainEndpoint: chainEp, hyperionEndpoint: hyperionEp, walletAccount, llmConfig } = body
+  const { messages, chainEndpoint: chainEp, hyperionEndpoint: hyperionEp, walletAccount, chainId: bodyChainId, llmConfig } = body
   const chainEndpoint = chainEp || ""
   const hyperionEndpoint = hyperionEp || ""
 
   let llmProvider = ""
   let llmApiKey = ""
   let llmModelName = ""
+  let billingMode: "free" | "paid" | "byok" = "byok"
+  let userId: string | null = null
 
   // Try DB config if authed
   const token = req.headers.get("authorization")?.replace("Bearer ", "")
   if (token) {
     try {
       const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET!) as { sub: string }
+      userId = decoded.sub
       const supabase = createAdminClient()
       const { data: settings } = await supabase
         .from("user_settings")
-        .select("llm_provider, llm_model, llm_api_key")
+        .select("llm_provider, llm_model, llm_api_key, llm_mode")
         .eq("user_id", decoded.sub)
         .single()
 
-      if (settings?.llm_provider && settings?.llm_api_key && settings?.llm_model) {
+      const llmMode = settings?.llm_mode || "builtin"
+
+      if (llmMode === "builtin") {
+        // Built-in mode: use Chutes with app's API key
+        const usageCheck = await checkUsageAllowance(bodyChainId || "", walletAccount || "")
+        if (!usageCheck.allowed) {
+          return Response.json(
+            { error: usageCheck.reason || "Out of credits" },
+            { status: 402 }
+          )
+        }
+        llmProvider = "chutes"
+        llmApiKey = process.env.CHUTES_API_KEY!
+        const defaultModel = await getAppConfig("chutes_default_model", "deepseek-ai/DeepSeek-V3-0324")
+        llmModelName = settings?.llm_model || defaultModel
+        billingMode = usageCheck.mode
+      } else if (settings?.llm_provider && settings?.llm_api_key && settings?.llm_model) {
+        // BYOK mode with server-stored keys
         llmProvider = settings.llm_provider
         llmApiKey = settings.llm_api_key
         llmModelName = settings.llm_model
+        billingMode = "byok"
       }
     } catch {
       // Token invalid or DB error — fall through to body config
     }
   }
 
-  // Fall back to body config if DB didn't provide it
+  // Fall back to body config if DB didn't provide it (unauthenticated BYOK)
   if (!llmProvider && llmConfig?.provider && llmConfig?.apiKey && llmConfig?.model) {
     llmProvider = llmConfig.provider
     llmApiKey = llmConfig.apiKey
     llmModelName = llmConfig.model
+    billingMode = "byok"
   }
 
   if (!llmProvider || !llmApiKey || !llmModelName) {
     return new Response("LLM not configured", { status: 400 })
   }
 
-  const llmModel = createLLMModel(llmProvider, llmApiKey, llmModelName)
+  let llmModel = createLLMModel(llmProvider, llmApiKey, llmModelName)
+  if (llmProvider === "chutes") {
+    llmModel = wrapLanguageModel({
+      model: llmModel,
+      middleware: extractReasoningMiddleware({ tagName: "think" }),
+    })
+  }
   const tools = createChainTools(chainEndpoint || null, hyperionEndpoint || null)
 
   const systemPrompt = `You are an Antelope blockchain explorer assistant. You help users understand and interact with Antelope-based blockchains (EOS, WAX, Telos, etc.).
@@ -73,16 +103,43 @@ ${hyperionEndpoint ? "Hyperion history API is available. You can query full acti
 ${walletAccount ? `The user's connected wallet account is: ${walletAccount}. When they say "my account", "my balance", etc., use this account name. When building transactions, use this as the "from" account.` : "No wallet connected."}`
 
   const optimizedMessages = optimizeMessagesForLLM(messages)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const convertedMessages = await convertToModelMessages(optimizedMessages as any)
 
-  const result = streamText({
-    model: llmModel,
+  const streamConfig = {
     system: systemPrompt,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    messages: await convertToModelMessages(optimizedMessages as any),
+    messages: convertedMessages,
     tools,
     maxOutputTokens: 4096,
     stopWhen: stepCountIs(5),
-  })
+    onFinish: async ({ usage }: { usage: { inputTokens?: number; outputTokens?: number } }) => {
+      if (bodyChainId && walletAccount && billingMode !== "byok") {
+        await recordUsage(
+          bodyChainId,
+          walletAccount,
+          billingMode as "free" | "paid",
+          usage.inputTokens ?? 0,
+          usage.outputTokens ?? 0,
+          llmModelName
+        )
+      }
+    },
+  }
 
-  return result.toUIMessageStreamResponse()
+  try {
+    const result = streamText({ model: llmModel, ...streamConfig })
+    return result.toUIMessageStreamResponse()
+  } catch (e) {
+    // Fallback model for Chutes if primary fails
+    const fallbackModelName = await getAppConfig("chutes_fallback_model")
+    if (llmProvider === "chutes" && fallbackModelName) {
+      const fallbackModel = wrapLanguageModel({
+        model: createLLMModel("chutes", llmApiKey, fallbackModelName),
+        middleware: extractReasoningMiddleware({ tagName: "think" }),
+      })
+      const result = streamText({ model: fallbackModel, ...streamConfig })
+      return result.toUIMessageStreamResponse()
+    }
+    throw e
+  }
 }

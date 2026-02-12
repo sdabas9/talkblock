@@ -23,6 +23,7 @@ interface ChainState {
   error: string | null
   connect: (endpoint: string, name?: string, hyperion?: string) => Promise<void>
   disconnect: () => void
+  refreshInfo: () => Promise<void>
 }
 
 const ChainContext = createContext<ChainState | null>(null)
@@ -73,6 +74,16 @@ export function ChainProvider({ children }: { children: ReactNode }) {
     }
   }, [connect])
 
+  const refreshInfo = useCallback(async () => {
+    if (!client) return
+    try {
+      const info = await client.getInfo()
+      setChainInfo(info)
+    } catch {
+      // silently ignore refresh errors
+    }
+  }, [client])
+
   const disconnect = useCallback(() => {
     setEndpoint(null)
     setHyperionEndpoint(null)
@@ -89,7 +100,7 @@ export function ChainProvider({ children }: { children: ReactNode }) {
       value={{
         endpoint, hyperionEndpoint, chainInfo, chainName, client,
         presets: PRESET_CHAINS, connecting, error,
-        connect, disconnect,
+        connect, disconnect, refreshInfo,
       }}
     >
       {children}

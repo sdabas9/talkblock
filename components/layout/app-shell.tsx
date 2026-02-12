@@ -9,6 +9,7 @@ import { ConversationProvider } from "@/lib/stores/conversation-store"
 import { ContextProvider } from "@/lib/stores/context-store"
 import { HistoryProvider } from "@/lib/stores/history-store"
 import { DashboardProvider } from "@/lib/stores/dashboard-store"
+import { CreditsProvider } from "@/lib/stores/credits-store"
 import { Header } from "./header"
 import { LeftPanel } from "./left-panel"
 
@@ -18,6 +19,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <ChainProvider>
       <WalletProvider>
         <LLMProvider>
+          <CreditsProvider>
           <ConversationProvider>
           <ContextProvider>
             <HistoryProvider>
@@ -37,6 +39,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </HistoryProvider>
           </ContextProvider>
           </ConversationProvider>
+          </CreditsProvider>
         </LLMProvider>
       </WalletProvider>
     </ChainProvider>

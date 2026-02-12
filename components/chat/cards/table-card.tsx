@@ -13,7 +13,7 @@ interface TableCardProps {
 export function TableCard({ data }: TableCardProps) {
   if (!data.rows || data.rows.length === 0) {
     return (
-      <Card className="my-2 max-w-lg">
+      <Card className="my-2">
         <CardContent className="px-4 py-3 text-sm text-muted-foreground">
           No rows found
         </CardContent>
@@ -24,7 +24,7 @@ export function TableCard({ data }: TableCardProps) {
   const columns = Object.keys(data.rows[0])
 
   return (
-    <Card className="my-2 max-w-lg overflow-hidden">
+    <Card className="my-2 overflow-hidden">
       <CardHeader className="pb-2 pt-3 px-4">
         <CardTitle className="text-sm flex items-center gap-2">
           <TableIcon className="h-4 w-4" />
