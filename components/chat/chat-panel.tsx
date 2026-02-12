@@ -43,10 +43,12 @@ export function ChatPanel() {
   const hyperionRef = useRef(hyperionEndpoint)
   const accountRef = useRef(accountName)
   const chainIdRef = useRef(chainInfo?.chain_id)
+  const chainNameRef = useRef(chainName)
   endpointRef.current = endpoint
   hyperionRef.current = hyperionEndpoint
   accountRef.current = accountName
   chainIdRef.current = chainInfo?.chain_id
+  chainNameRef.current = chainName
 
   const customFetch = useCallback(async (input: RequestInfo | URL, init?: RequestInit) => {
     const body = JSON.parse(init?.body as string || "{}")
@@ -54,6 +56,7 @@ export function ChatPanel() {
     body.hyperionEndpoint = hyperionRef.current || ""
     body.walletAccount = accountRef.current || ""
     body.chainId = chainIdRef.current || ""
+    body.chainName = chainNameRef.current || ""
     const token = localStorage.getItem("auth_token")
     const headers: Record<string, string> = {
       ...Object.fromEntries(new Headers(init?.headers).entries()),

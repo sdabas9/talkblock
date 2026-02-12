@@ -2,8 +2,9 @@ import { tool, type ToolSet } from "ai"
 import { z } from "zod"
 import { AntelopeClient } from "@/lib/antelope/client"
 import { HyperionClient } from "@/lib/antelope/hyperion"
+import { getContractGuide, listAvailableGuides } from "@/lib/contracts"
 
-export function createChainTools(endpoint: string | null, hyperionEndpoint: string | null = null): ToolSet {
+export function createChainTools(endpoint: string | null, hyperionEndpoint: string | null = null, chainName: string | null = null): ToolSet {
   if (!endpoint) return {}
 
   const client = new AntelopeClient(endpoint)
@@ -275,6 +276,35 @@ export function createChainTools(endpoint: string | null, hyperionEndpoint: stri
           description,
           actions,
           status: "pending_signature" as const,
+        }
+      },
+    }),
+
+    get_contract_guide: tool({
+      description:
+        "Look up a curated guide for interacting with a specific smart contract. Returns detailed action workflows, parameter formats, table scopes, and common gotchas. ALWAYS call this before building transactions for non-trivial contracts to ensure correct parameter formats and action sequences.",
+      inputSchema: z.object({
+        contract: z
+          .string()
+          .describe("The contract account name (e.g. 'eosio.system', 'eosio.token', 'atomicassets')"),
+      }),
+      execute: async ({ contract }) => {
+        const guide = getContractGuide(contract, chainName || undefined)
+        if (guide) {
+          return {
+            contract: guide.contract,
+            chains: guide.chains,
+            summary: guide.summary,
+            guide: guide.guide,
+          }
+        }
+        // No curated guide — return available guides list as hint
+        const available = listAvailableGuides(chainName || undefined)
+        return {
+          contract,
+          error: `No curated guide found for "${contract}".`,
+          available_guides: available.map((g) => g.contract),
+          hint: "You can still use get_abi to inspect this contract's actions and tables.",
         }
       },
     }),

@@ -2,6 +2,7 @@ import { streamText, convertToModelMessages, stepCountIs, wrapLanguageModel, ext
 import { createLLMModel } from "@/lib/llm/provider"
 import { createChainTools } from "@/lib/llm/tools"
 import { optimizeMessagesForLLM } from "@/lib/llm/optimize-messages"
+import { listAvailableGuides } from "@/lib/contracts"
 import { createAdminClient } from "@/lib/supabase/server"
 import { checkUsageAllowance, recordUsage } from "@/lib/billing/credits"
 import { getAppConfig } from "@/lib/config"
@@ -9,7 +10,7 @@ import jwt from "jsonwebtoken"
 
 export async function POST(req: Request) {
   const body = await req.json()
-  const { messages, chainEndpoint: chainEp, hyperionEndpoint: hyperionEp, walletAccount, chainId: bodyChainId, llmConfig } = body
+  const { messages, chainEndpoint: chainEp, hyperionEndpoint: hyperionEp, walletAccount, chainId: bodyChainId, chainName: bodyChainName, llmConfig } = body
   const chainEndpoint = chainEp || ""
   const hyperionEndpoint = hyperionEp || ""
 
@@ -79,7 +80,13 @@ export async function POST(req: Request) {
       middleware: extractReasoningMiddleware({ tagName: "think" }),
     })
   }
-  const tools = createChainTools(chainEndpoint || null, hyperionEndpoint || null)
+  const tools = createChainTools(chainEndpoint || null, hyperionEndpoint || null, bodyChainName || null)
+
+  // Build available contract guides list for system prompt
+  const availableGuides = listAvailableGuides(bodyChainName || undefined)
+  const guidesListStr = availableGuides.length > 0
+    ? `\nContract guides available (use get_contract_guide tool to load): ${availableGuides.map((g) => g.contract).join(", ")}`
+    : ""
 
   const systemPrompt = `You are an Antelope blockchain explorer assistant. You help users understand and interact with Antelope-based blockchains (EOS, WAX, Telos, etc.).
 
@@ -92,6 +99,7 @@ Guidelines:
 - Present data clearly and explain what it means
 - When building transactions, ONLY call the build_transaction tool. Do NOT add any text before or after the tool call — no explanations, no summaries, no "here's your transaction" text. The tool result renders as an editable form card, which is all the user needs to see. Any extra text clutters the UI.
 - When the user reports a transaction error (e.g. "[Transaction Error: ...]"), analyze the error message and automatically attempt to build a corrected transaction. Common fixes include: adjusting token precision/symbol, fixing account names, checking permissions, or adjusting resource amounts.
+- Before building transactions for non-trivial contracts, call get_contract_guide to load the guide for that contract. This ensures correct parameter formats, action sequences, and avoids common mistakes.
 - If the chain endpoint is not connected, let the user know they need to connect first
 - Be concise but informative
 - When you receive a [System: ...] message about a chain or wallet change, introduce yourself briefly (1-2 sentences), mention what chain/account they're on, and suggest a few things you can help with. Don't repeat the system message — just respond naturally as a greeting.
@@ -100,7 +108,7 @@ ${chainEndpoint ? "Connected chain endpoint: " + chainEndpoint : "No chain conne
 
 ${hyperionEndpoint ? "Hyperion history API is available. You can query full action history, token transfers, account creation history, token holdings across all contracts, and key-to-account lookups using the get_actions, get_transfers, get_created_accounts, get_creator, get_tokens, and get_key_accounts tools." : ""}
 
-${walletAccount ? `The user's connected wallet account is: ${walletAccount}. When they say "my account", "my balance", etc., use this account name. When building transactions, use this as the "from" account.` : "No wallet connected."}`
+${walletAccount ? `The user's connected wallet account is: ${walletAccount}. When they say "my account", "my balance", etc., use this account name. When building transactions, use this as the "from" account.` : "No wallet connected."}${guidesListStr}`
 
   const optimizedMessages = optimizeMessagesForLLM(messages)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

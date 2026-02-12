@@ -144,6 +144,11 @@ const summarizers: Record<string, Summarizer> = {
     if (o.error) return `build_transaction error: ${o.error}`
     return `Transaction proposal (${o.status}): ${o.description || "action"}`
   },
+
+  get_contract_guide(o) {
+    if (o.error) return `get_contract_guide: ${o.error}`
+    return `Contract guide for ${o.contract}: ${o.summary || "loaded"}`
+  },
 }
 
 function summarizeToolOutput(toolName: string, output: any): string {

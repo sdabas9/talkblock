@@ -11,7 +11,7 @@ import { TokensCard } from "./tokens-card"
 import { useHistory } from "@/lib/stores/history-store"
 import { useChain } from "@/lib/stores/chain-store"
 import { Button } from "@/components/ui/button"
-import { Bookmark } from "lucide-react"
+import { Bookmark, BookOpen } from "lucide-react"
 
 interface ToolResultRendererProps {
   toolName: string
@@ -52,6 +52,7 @@ function getLabel(toolName: string, result: Record<string, any>): string {
       const names = result.account_names || []
       return `Key Accounts (${names.length})`
     }
+    case "get_contract_guide": return `Guide: ${result.contract || "Contract"}`
     default: return toolName
   }
 }
@@ -161,6 +162,14 @@ export function ToolResultRenderer({ toolName, result, onTxError }: ToolResultRe
               ))}
               {(!result.account_names || (result.account_names as unknown[]).length === 0) && <span className="text-muted-foreground">None found</span>}
             </div>
+          </div>
+        )
+      case "get_contract_guide":
+        return (
+          <div className="text-xs bg-muted/50 rounded-md px-3 py-1.5 my-1 flex items-center gap-1.5 text-muted-foreground">
+            <BookOpen className="h-3 w-3 shrink-0" />
+            <span>Loaded guide for <span className="font-medium text-foreground">{String(result.contract)}</span></span>
+            {result.summary && <span className="hidden sm:inline">— {String(result.summary)}</span>}
           </div>
         )
       default:
