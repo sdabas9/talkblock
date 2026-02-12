@@ -12,6 +12,7 @@ import { DashboardProvider } from "@/lib/stores/dashboard-store"
 import { CreditsProvider } from "@/lib/stores/credits-store"
 import { Header } from "./header"
 import { LeftPanel } from "./left-panel"
+import { Github } from "lucide-react"
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -33,6 +34,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     {children}
                   </main>
                 </div>
+                <footer className="border-t px-4 py-1.5 flex items-center justify-between text-[11px] text-muted-foreground/60 shrink-0">
+                  <span>Talkblock is experimental. AI responses may be inaccurate. Always verify transactions before signing.</span>
+                  <a
+                    href="https://github.com/sdabas9/talkblock"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 hover:text-foreground transition-colors shrink-0 ml-4"
+                  >
+                    <Github className="h-3 w-3" />
+                    <span>GitHub</span>
+                  </a>
+                </footer>
               </div>
               </PanelProvider>
             </DashboardProvider>
