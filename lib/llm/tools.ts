@@ -154,9 +154,6 @@ export function createChainTools(endpoint: string | null, hyperionEndpoint: stri
         reverse,
       }) => {
         try {
-          const logLine1 = `[${new Date().toISOString()}] [get_table_rows] LLM called with: ${JSON.stringify({ code, table, scope, limit, lower_bound, upper_bound, index_position, key_type, reverse })}\n`
-          console.log(logLine1.trim())
-          require("fs").appendFileSync("/tmp/llm-tool-calls.log", logLine1)
           const result = await client.getTableRows({
             code,
             table,
@@ -168,9 +165,6 @@ export function createChainTools(endpoint: string | null, hyperionEndpoint: stri
             key_type,
             reverse,
           })
-          const logLine2 = `[${new Date().toISOString()}] [get_table_rows] Returned ${result.rows?.length ?? 0} rows\n`
-          console.log(logLine2.trim())
-          require("fs").appendFileSync("/tmp/llm-tool-calls.log", logLine2)
           return {
             code,
             table,
@@ -325,9 +319,6 @@ export function createChainTools(endpoint: string | null, hyperionEndpoint: stri
           .describe("The contract account name (e.g. 'eosio.system', 'eosio.token', 'atomicassets')"),
       }),
       execute: async ({ contract }) => {
-        const guideLog = `[${new Date().toISOString()}] [get_contract_guide] LLM requested guide for: ${contract}\n`
-        console.log(guideLog.trim())
-        require("fs").appendFileSync("/tmp/llm-tool-calls.log", guideLog)
         const guide = getContractGuide(contract, chainName || undefined)
         if (guide) {
           return {
