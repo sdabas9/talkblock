@@ -96,17 +96,13 @@ export class HyperionClient {
     })
   }
 
-  async getTableState(params: {
-    code: string
-    table: string
-    block_num?: number
-    after_key?: string
+  async getAbiSnapshot(params: {
+    contract: string
+    block?: number
   }) {
-    return this.query("/v2/history/get_table_state", {
-      code: params.code,
-      table: params.table,
-      block_num: params.block_num,
-      after_key: params.after_key,
+    return this.query("/v2/history/get_abi_snapshot", {
+      contract: params.contract,
+      block: params.block,
     })
   }
 
@@ -138,18 +134,6 @@ export class HyperionClient {
 
   async getKeyAccounts(publicKey: string) {
     return this.query("/v2/state/get_key_accounts", { public_key: publicKey })
-  }
-
-  async getTopHolders(params: {
-    symbol: string
-    contract?: string
-    limit?: number
-  }) {
-    return this.query("/v2/state/get_top_holders", {
-      symbol: params.symbol,
-      contract: params.contract,
-      limit: params.limit,
-    })
   }
 
   async getLinks(params: { account: string }) {

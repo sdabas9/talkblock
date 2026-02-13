@@ -537,52 +537,6 @@ export function createChainTools(endpoint: string | null, hyperionEndpoint: stri
       },
     })
 
-    tools.get_table_state = tool({
-      description:
-        "Reconstruct a contract table's full state at a specific block height (time-travel). Shows what the table looked like at that point in time.",
-      inputSchema: z.object({
-        code: z.string().describe("Contract account name (e.g. 'eosio.token')"),
-        table: z.string().describe("Table name to reconstruct"),
-        block_num: z.number().optional().describe("Block number to reconstruct state at. Omit for latest."),
-        after_key: z.string().optional().describe("Pagination key from previous response's next_key"),
-      }),
-      execute: async ({ code, table, block_num, after_key }) => {
-        try {
-          const result = await hyperion.getTableState({ code, table, block_num, after_key })
-          return {
-            results: result.results || [],
-            code,
-            table,
-            block_num: result.block_num || block_num,
-            next_key: result.next_key || null,
-          }
-        } catch (e) {
-          return { error: e instanceof Error ? e.message : "Failed to fetch table state" }
-        }
-      },
-    })
-
-    tools.get_top_holders = tool({
-      description:
-        "Get the top token holders for a specific token symbol. Shows which accounts hold the most of a given token.",
-      inputSchema: z.object({
-        symbol: z.string().describe("Token symbol (e.g. 'TLOS', 'EOS', 'WAX')"),
-        contract: z.string().optional().describe("Token contract (default: main token contract)"),
-        limit: z.number().optional().describe("Max holders to return (default 50)"),
-      }),
-      execute: async ({ symbol, contract, limit }) => {
-        try {
-          const result = await hyperion.getTopHolders({ symbol, contract, limit })
-          return {
-            holders: result.holders || [],
-            symbol,
-          }
-        } catch (e) {
-          return { error: e instanceof Error ? e.message : "Failed to fetch top holders" }
-        }
-      },
-    })
-
     tools.get_voters = tool({
       description:
         "Get accounts that are voting for a specific block producer. Shows voter details including vote weight.",
@@ -637,6 +591,98 @@ export function createChainTools(endpoint: string | null, hyperionEndpoint: stri
           }
         } catch (e) {
           return { error: e instanceof Error ? e.message : "Failed to fetch permission links" }
+        }
+      },
+    })
+
+    // Override RPC get_transaction with Hyperion version (richer trace data, works without history plugin)
+    tools.get_transaction = tool({
+      description:
+        "Look up a transaction by its transaction ID. Returns full action traces and detailed execution data.",
+      inputSchema: z.object({
+        transaction_id: z.string().describe("The transaction ID (hash) to look up"),
+      }),
+      execute: async ({ transaction_id }) => {
+        try {
+          const result = await hyperion.getTransaction(transaction_id)
+          // Trim oversized action data to reduce token usage
+          const actions = (result.actions || []).map((a: any) => {
+            if (a.act?.data && JSON.stringify(a.act.data).length > 500) {
+              const keys = Object.keys(a.act.data)
+              const trimmed: Record<string, any> = {}
+              for (const k of keys.slice(0, 5)) trimmed[k] = a.act.data[k]
+              if (keys.length > 5) trimmed._trimmed = `${keys.length - 5} more fields`
+              return { ...a, act: { ...a.act, data: trimmed } }
+            }
+            return a
+          })
+          return {
+            id: result.trx_id || transaction_id,
+            block_num: result.block_num,
+            block_time: result.block_time,
+            actions,
+            executed: result.executed,
+          }
+        } catch (e) {
+          return { error: e instanceof Error ? e.message : "Failed to fetch transaction" }
+        }
+      },
+    })
+
+    tools.get_transacted_accounts = tool({
+      description:
+        "Get accounts that have transacted with a given account. Shows who an account sends to or receives from, useful for network analysis and finding related accounts.",
+      inputSchema: z.object({
+        account: z.string().describe("The account to analyze"),
+        direction: z.enum(["in", "out", "both"]).describe("Direction of transfers: 'in' (received from), 'out' (sent to), or 'both'"),
+        symbol: z.string().optional().describe("Filter by token symbol (e.g. 'TLOS')"),
+        contract: z.string().optional().describe("Filter by token contract (e.g. 'eosio.token')"),
+        limit: z.number().optional().describe("Max accounts to return (default 50)"),
+      }),
+      execute: async ({ account, direction, symbol, contract, limit }) => {
+        try {
+          const result = await hyperion.getTransactedAccounts({
+            account, direction, symbol, contract, limit,
+          })
+          return {
+            accounts: result.accounts || [],
+            account,
+            direction,
+          }
+        } catch (e) {
+          return { error: e instanceof Error ? e.message : "Failed to fetch transacted accounts" }
+        }
+      },
+    })
+
+    tools.get_abi_snapshot = tool({
+      description:
+        "Fetch a contract's ABI as it was at a specific block number. Useful for understanding how a contract's interface has changed over time.",
+      inputSchema: z.object({
+        contract: z.string().describe("The contract account name"),
+        block: z.number().optional().describe("Block number to fetch ABI at. Omit for latest."),
+      }),
+      execute: async ({ contract, block }) => {
+        try {
+          const result = await hyperion.getAbiSnapshot({ contract, block })
+          const abi = result.abi
+          if (!abi) return { error: "No ABI found for this contract at the specified block" }
+          const actionTypes = new Set(abi.actions?.map((a: any) => a.type) || [])
+          return {
+            contract,
+            block_num: result.block_num || block,
+            tables: abi.tables?.map((t: any) => t.name) || [],
+            actions: abi.actions?.map((a: any) => a.name) || [],
+            structs:
+              abi.structs
+                ?.filter((s: any) => actionTypes.has(s.name))
+                .map((s: any) => ({
+                  name: s.name,
+                  fields: s.fields,
+                })) || [],
+          }
+        } catch (e) {
+          return { error: e instanceof Error ? e.message : "Failed to fetch ABI snapshot" }
         }
       },
     })

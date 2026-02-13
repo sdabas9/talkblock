@@ -107,7 +107,7 @@ Guidelines:
 
 ${chainEndpoint ? "Connected chain endpoint: " + chainEndpoint : "No chain connected — inform the user they should connect to a chain to query on-chain data."}
 
-${hyperionEndpoint ? "Hyperion history API is available. You can query full action history, token transfers, account creation history, token holdings across all contracts, and key-to-account lookups using the get_actions, get_transfers, get_created_accounts, get_creator, get_tokens, and get_key_accounts tools. Additional Hyperion tools: get_deltas (table change history), get_table_state (table state at a block height), get_top_holders (top token holders), get_voters (producer voter lists), get_proposals (MSIG proposals), get_links (permission links)." : ""}
+${hyperionEndpoint ? "Hyperion history API is available. You can query full action history, token transfers, account creation history, token holdings across all contracts, and key-to-account lookups using the get_actions, get_transfers, get_created_accounts, get_creator, get_tokens, and get_key_accounts tools. Additional Hyperion tools: get_deltas (table change history), get_voters (producer voter lists), get_proposals (MSIG proposals), get_links (permission links), get_transacted_accounts (who an account transacts with), get_abi_snapshot (contract ABI at a past block)." : ""}
 
 ${walletAccount ? `The user's connected wallet account is: ${walletAccount}. When they say "my account", "my balance", etc., use this account name. When building transactions, use this as the "from" account.` : "No wallet connected."}${guidesListStr}`
 
