@@ -118,6 +118,10 @@ export function ChatPanel() {
 
   // Load messages when active conversation changes
   useEffect(() => {
+    if (justCreatedRef.current) {
+      justCreatedRef.current = false
+      return
+    }
     if (activeConversationId) {
       loadMessages(activeConversationId).then((msgs) => {
         const chatMessages = msgs.map((m: { role: string; parts: unknown[] }, i: number) => ({
@@ -155,10 +159,14 @@ export function ChatPanel() {
     })
   }, [sendMessage])
 
+  // Track when we just created a conversation so the load effect skips it
+  const justCreatedRef = useRef(false)
+
   // Auto-create conversation on first message send
   const handleSend = useCallback(async (text: string) => {
     setOutOfCredits(false)
     if (!activeConvRef.current) {
+      justCreatedRef.current = true
       const convId = await createConversation(chainName || undefined, endpoint || undefined)
       activeConvRef.current = convId
     }
