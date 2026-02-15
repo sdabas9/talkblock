@@ -14,7 +14,7 @@ export async function GET(req: Request) {
   const userId = getUserId(req)
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
-  const supabase = createAdminClient()
+  const supabase = createAdminClient()!
   const { data, error } = await supabase
     .from("conversations")
     .select("id, title, chain_name, chain_endpoint, created_at, updated_at")
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   const body = await req.json()
-  const supabase = createAdminClient()
+  const supabase = createAdminClient()!
 
   const { data, error } = await supabase
     .from("conversations")

@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/server"
+import { isSupabaseConfigured } from "@/lib/supabase/check"
 
 const FREE_REQUESTS_PER_DAY = 5
 const TOKENS_PER_TLOS = 250000
@@ -12,7 +13,11 @@ interface UsageAllowance {
 }
 
 export async function checkUsageAllowance(chainId: string, accountName: string): Promise<UsageAllowance> {
-  const supabase = createAdminClient()
+  if (!isSupabaseConfigured()) {
+    return { allowed: false, reason: "Supabase not configured. Use BYOK mode.", mode: "free" }
+  }
+
+  const supabase = createAdminClient()!
   const today = new Date().toISOString().split("T")[0]
 
   // Check today's usage by chain+account
@@ -70,7 +75,9 @@ export async function recordUsage(
   outputTokens: number,
   model: string
 ) {
-  const supabase = createAdminClient()
+  if (!isSupabaseConfigured()) return
+
+  const supabase = createAdminClient()!
   const today = new Date().toISOString().split("T")[0]
   const totalTokens = inputTokens + outputTokens
 
@@ -141,7 +148,11 @@ export async function creditDeposit(
   tlosAmount: number,
   txHash: string
 ): Promise<{ newBalance: number }> {
-  const supabase = createAdminClient()
+  if (!isSupabaseConfigured()) {
+    throw new Error("Supabase not configured. Credit deposits are unavailable.")
+  }
+
+  const supabase = createAdminClient()!
 
   // Check for duplicate tx_hash
   const { data: existingTx } = await supabase

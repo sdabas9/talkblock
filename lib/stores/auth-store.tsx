@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const parsed = JSON.parse(stored)
         setUser(parsed)
         const supabase = createClient()
-        supabase.auth.setSession({ access_token: token, refresh_token: "" })
+        supabase?.auth.setSession({ access_token: token, refresh_token: "" })
       } catch {}
     }
     setLoading(false)
@@ -51,7 +51,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { token, user: userData } = await res.json()
 
     const supabase = createClient()
-    await supabase.auth.setSession({ access_token: token, refresh_token: "" })
+    if (supabase) {
+      await supabase.auth.setSession({ access_token: token, refresh_token: "" })
+    }
 
     localStorage.setItem("auth_token", token)
     localStorage.setItem("auth_user", JSON.stringify(userData))
@@ -67,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     document.cookie = "auth_user=; path=/; max-age=0"
     setUser(null)
     const supabase = createClient()
-    supabase.auth.signOut()
+    supabase?.auth.signOut()
   }, [])
 
   return (

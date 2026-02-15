@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/server"
+import { isSupabaseConfigured } from "@/lib/supabase/check"
 import { getAppConfig } from "@/lib/config"
 
 const FREE_REQUESTS_PER_DAY = 5
@@ -12,7 +13,22 @@ export async function GET(req: Request) {
     return Response.json({ error: "chainId and accountName are required" }, { status: 400 })
   }
 
-  const supabase = createAdminClient()
+  if (!isSupabaseConfigured()) {
+    return Response.json({
+      balance_tokens: 0,
+      total_deposited_tlos: 0,
+      today: {
+        request_count: 0,
+        free_remaining: 0,
+        total_input_tokens: 0,
+        total_output_tokens: 0,
+      },
+      recent_transactions: [],
+      app_wallet_account: "",
+    })
+  }
+
+  const supabase = createAdminClient()!
   const today = new Date().toISOString().split("T")[0]
 
   const [balanceResult, usageResult, transactionsResult] = await Promise.all([

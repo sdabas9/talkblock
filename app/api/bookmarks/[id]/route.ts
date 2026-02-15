@@ -15,7 +15,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   const { id } = await params
-  const supabase = createAdminClient()
+  const supabase = createAdminClient()!
 
   const { error } = await supabase
     .from("bookmarks")

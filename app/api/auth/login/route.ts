@@ -1,14 +1,22 @@
 import { createAdminClient } from "@/lib/supabase/server"
+import { isSupabaseConfigured } from "@/lib/supabase/check"
 import jwt from "jsonwebtoken"
 
 export async function POST(req: Request) {
+  if (!isSupabaseConfigured()) {
+    return Response.json(
+      { error: "Authentication unavailable. Supabase is not configured." },
+      { status: 503 }
+    )
+  }
+
   const { accountName, chainId } = await req.json()
 
   if (!accountName || !chainId) {
     return Response.json({ error: "Missing accountName or chainId" }, { status: 400 })
   }
 
-  const supabase = createAdminClient()
+  const supabase = createAdminClient()!
 
   // Upsert profile
   const { data: profile, error } = await supabase

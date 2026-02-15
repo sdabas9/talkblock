@@ -15,7 +15,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   const { id } = await params
-  const supabase = createAdminClient()
+  const supabase = createAdminClient()!
 
   const { data: conv } = await supabase
     .from("conversations")
@@ -41,7 +41,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const { id } = await params
   const body = await req.json()
-  const supabase = createAdminClient()
+  const supabase = createAdminClient()!
 
   const { data: conv } = await supabase
     .from("conversations")
@@ -75,7 +75,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   const { id } = await params
-  const supabase = createAdminClient()
+  const supabase = createAdminClient()!
 
   const { error } = await supabase
     .from("conversations")
