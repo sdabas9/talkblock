@@ -12,6 +12,8 @@ async function loadConfig(): Promise<Record<string, string>> {
   }
 
   const supabase = createAdminClient()
+  if (!supabase) return {}
+
   const { data } = await supabase.from("app_config").select("key, value")
 
   const config: Record<string, string> = {}

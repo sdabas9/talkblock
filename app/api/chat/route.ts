@@ -4,6 +4,7 @@ import { createChainTools } from "@/lib/llm/tools"
 import { optimizeMessagesForLLM } from "@/lib/llm/optimize-messages"
 import { listAvailableGuides } from "@/lib/contracts"
 import { createAdminClient } from "@/lib/supabase/server"
+import { isSupabaseConfigured } from "@/lib/supabase/check"
 import { checkUsageAllowance, recordUsage } from "@/lib/billing/credits"
 import { getAppConfig } from "@/lib/config"
 import jwt from "jsonwebtoken"
@@ -20,13 +21,13 @@ export async function POST(req: Request) {
   let billingMode: "free" | "paid" | "byok" = "byok"
   let userId: string | null = null
 
-  // Try DB config if authed
+  // Try DB config if authed (only when Supabase is configured)
   const token = req.headers.get("authorization")?.replace("Bearer ", "")
-  if (token) {
+  if (token && isSupabaseConfigured()) {
     try {
       const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET!) as { sub: string }
       userId = decoded.sub
-      const supabase = createAdminClient()
+      const supabase = createAdminClient()!
       const { data: settings } = await supabase
         .from("user_settings")
         .select("llm_provider, llm_model, llm_api_key, llm_mode")

@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   const userId = getUserId(req)
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
-  const supabase = createAdminClient()
+  const supabase = createAdminClient()!
   const { data, error } = await supabase
     .from("user_settings")
     .select("llm_provider, llm_model, llm_api_key, llm_mode, ui_preferences, preferred_chains")
@@ -39,7 +39,7 @@ export async function PUT(req: Request) {
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   const body = await req.json()
-  const supabase = createAdminClient()
+  const supabase = createAdminClient()!
 
   const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if (body.llm_provider !== undefined) updateData.llm_provider = body.llm_provider

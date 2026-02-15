@@ -70,6 +70,14 @@ export function LLMProvider({ children }: { children: ReactNode }) {
     if (mode) setLLMModeState(mode)
   }, [])
 
+  // Without Supabase, built-in mode can't work — force BYOK
+  useEffect(() => {
+    if (!isAuthed && llmMode === "builtin") {
+      setLLMModeState("byok")
+      localStorage.setItem("llm_mode", "byok")
+    }
+  }, [isAuthed, llmMode])
+
   // When authed, sync non-key settings from server
   useEffect(() => {
     if (!isAuthed) return
@@ -162,14 +170,15 @@ export function LLMProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const getClientConfig = useCallback(() => {
-    if (llmMode === "builtin") return null
+    // In builtin mode, only skip if user is actually authed (Supabase available)
+    if (llmMode === "builtin" && isAuthed) return null
     const provider = localStorage.getItem("llm_provider")
     const model = localStorage.getItem("llm_model")
     if (!provider || !model) return null
     const apiKey = localStorage.getItem(apiKeyStorageKey(provider))
     if (!apiKey) return null
     return { provider, model, apiKey }
-  }, [llmMode])
+  }, [llmMode, isAuthed])
 
   const isConfigured = llmMode === "builtin"
     ? !!user
