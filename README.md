@@ -2,13 +2,20 @@
 
 Chat-first blockchain explorer for [Antelope](https://antelope.io) chains. Ask questions in natural language, get structured results, and build a personal dashboard from bookmarked data.
 
+**Live at [talkblock.me](https://talkblock.me)**
+
 ## Features
 
-- **Chat interface** -- Ask about accounts, blocks, transactions, contracts, token balances, and producers using natural language
-- **Multi-chain** -- Connect to EOS, WAX, Telos, Jungle4, FIO, Libre, or any custom RPC endpoint
-- **Dashboard** -- Bookmark results from chat and arrange them as draggable, renamable cards in a responsive grid
-- **Multi-provider LLM** -- Bring your own API key for Anthropic (Claude), OpenAI (GPT), or Google (Gemini)
+- **Chat interface** -- Ask about accounts, blocks, transactions, contracts, token balances, producers, and more using natural language
+- **Multi-chain** -- EOS, WAX, Telos, Jungle4, FIO, Libre, or any custom RPC endpoint
+- **Dashboard** -- Bookmark results from chat and arrange them as draggable, renamable cards in a 2-column grid with auto-refresh and data age labels
+- **Built-in LLM** -- Free tier powered by Chutes (5 requests/day per account)
+- **Bring Your Own Key** -- Anthropic (Claude), OpenAI (GPT), Google (Gemini), or Chutes -- API keys stored locally, never sent to the server
+- **Per-account credits** -- Purchase additional tokens with TLOS on Telos Mainnet (1 TLOS = 250,000 tokens), tied to chain + account
+- **Contract guides** -- 8 curated guides (eosio.token, eosio, eosio.msig, atomicassets, telos.decide, dgoods, res.pink, thezeosalias) the LLM loads on-demand for accurate transaction building
+- **24 LLM tools** -- 9 core RPC tools + 15 Hyperion-powered tools including actions, transfers, tokens, deltas, voters, proposals, and more
 - **Wallet integration** -- Connect via Anchor wallet (Wharfkit) to sign and broadcast transactions
+- **Health monitoring** -- Sidebar status dots for each chain: green (RPC + Hyperion), yellow (RPC only), orange (Hyperion only), red (none); checks every 5 minutes
 - **Light/Dark theme** -- Toggle between themes, preference persists across sessions
 - **Works without auth** -- Full functionality using localStorage; optionally connect Supabase for server-side persistence
 
@@ -56,21 +63,24 @@ Open [http://localhost:3000](http://localhost:3000), select a chain, configure y
 
 ```
 app/
-  (app)/          -- Main app layout and page (chat + dashboard)
-  api/            -- API routes (chat, auth, bookmarks, conversations, settings)
-  login/          -- Chain selection page
+  (app)/            -- Main app layout and page (chat + dashboard)
+  api/              -- API routes (chat, auth, bookmarks, conversations, credits, settings)
+  login/            -- Chain selection page
 components/
-  chat/           -- Chat panel, message rendering, tool result cards
-  dashboard/      -- Dashboard view and card components
-  layout/         -- App shell, header, left panel
-  chain/          -- Chain selector
-  settings/       -- LLM settings
-  wallet/         -- Wallet button
+  chat/             -- Chat panel, message rendering, tool result cards
+  dashboard/        -- Dashboard view and card components
+  layout/           -- App shell, header, sidebar
+  chain/            -- Chain selector
+  settings/         -- LLM settings
+  wallet/           -- Wallet button
 lib/
-  stores/         -- React context stores (panel, history, dashboard, auth, chain, LLM, wallet, conversation)
-  supabase/       -- Supabase client/server helpers
+  antelope/         -- Antelope helpers (data refetch, formatting)
+  contracts/        -- Contract guide registry and per-contract guide files
+  llm/              -- LLM tool definitions
+  stores/           -- React context stores (panel, history, dashboard, auth, chain, LLM, wallet, conversation)
+  supabase/         -- Supabase client/server helpers
 supabase/
-  migrations/     -- Database schema
+  migrations/       -- Database schema
 ```
 
 ## License
