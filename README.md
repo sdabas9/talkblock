@@ -43,13 +43,31 @@ npm install
 
 ### Configure
 
-Copy the example env file:
+The app works in two modes:
+
+**Without Supabase (BYOK only)** -- no env file needed:
+
+```bash
+npm run dev
+```
+
+You configure your own LLM API key in the browser. Chat, bookmarks, and settings all use localStorage. Auth, credits, and server-side persistence are disabled.
+
+**With Supabase (full features)** -- copy the example env file and fill in your credentials:
 
 ```bash
 cp .env.local.example .env.local
 ```
 
-Fill in your Supabase credentials (optional -- the app works without them using localStorage).
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | For auth/persistence | Your Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | For auth/persistence | Supabase anon (public) key |
+| `SUPABASE_SERVICE_ROLE_KEY` | For auth/persistence | Supabase service role key (server-side only) |
+| `SUPABASE_JWT_SECRET` | For auth/persistence | JWT secret for signing auth tokens |
+| `CHUTES_API_KEY` | For built-in LLM | Chutes API key for the free built-in model |
+
+When all four Supabase variables are set, you get: wallet-based auth, server-side bookmarks/conversations, per-account credits, and the built-in LLM tier.
 
 ### Run
 
