@@ -14,7 +14,10 @@ Chat-first blockchain explorer for [Antelope](https://antelope.io) chains. Ask q
 - **Per-account credits** -- Purchase additional tokens with TLOS on Telos Mainnet (1 TLOS = 250,000 tokens), tied to chain + account
 - **Contract guides** -- 8 curated guides (eosio.token, eosio, eosio.msig, atomicassets, telos.decide, dgoods, res.pink, thezeosalias) the LLM loads on-demand for accurate transaction building
 - **24 LLM tools** -- 9 core RPC tools + 15 Hyperion-powered tools including actions, transfers, tokens, deltas, voters, proposals, and more
-- **Wallet integration** -- Connect via Anchor wallet (Wharfkit) to sign and broadcast transactions
+- **Shareable transaction links** -- Copy a shareable URL for any transaction; opening the link auto-connects to the chain and looks up the transaction
+- **Clickable entities** -- Account names and transaction IDs in chat responses are clickable, opening a detail panel with full account/transaction info
+- **Detail panel** -- Right-side panel shows account resources, permissions, staking, voting info, or transaction actions and status
+- **Wallet integration** -- Connect via Anchor wallet (Wharfkit) to sign and broadcast transactions; cleos command preview with copy button
 - **Health monitoring** -- Sidebar status dots for each chain: green (RPC + Hyperion), yellow (RPC only), orange (Hyperion only), red (none); checks every 5 minutes
 - **Light/Dark theme** -- Toggle between themes, preference persists across sessions
 - **Works without auth** -- Full functionality using localStorage; optionally connect Supabase for server-side persistence
@@ -82,17 +85,18 @@ Open [http://localhost:3000](http://localhost:3000), select a chain, configure y
 ```
 app/
   (app)/            -- Main app layout and page (chat + dashboard)
-  api/              -- API routes (chat, auth, bookmarks, conversations, credits, settings)
+  api/              -- API routes (chat, auth, bookmarks, conversations, credits, settings, lookup proxy)
   login/            -- Chain selection page
 components/
   chat/             -- Chat panel, message rendering, tool result cards
+  context/          -- Detail panel components (account, transaction, block)
   dashboard/        -- Dashboard view and card components
-  layout/           -- App shell, header, sidebar
+  layout/           -- App shell, header, sidebar, right detail panel
   chain/            -- Chain selector
   settings/         -- LLM settings
   wallet/           -- Wallet button
 lib/
-  antelope/         -- Antelope helpers (data refetch, formatting)
+  antelope/         -- Antelope helpers (data refetch, formatting, entity lookup)
   contracts/        -- Contract guide registry and per-contract guide files
   llm/              -- LLM tool definitions
   stores/           -- React context stores (panel, history, dashboard, auth, chain, LLM, wallet, conversation)
