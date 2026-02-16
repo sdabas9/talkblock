@@ -4,24 +4,9 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { User, HardDrive, Cpu, Wifi, Key, Shield } from "lucide-react"
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface AccountDetailProps {
-  data: {
-    account_name: string
-    balance: string
-    ram: { used: number; quota: number }
-    cpu: { used: number; available: number; max: number }
-    net: { used: number; available: number; max: number }
-    cpu_staked: string
-    net_staked: string
-    permissions?: Array<{
-      name: string
-      parent: string
-      threshold: number
-      keys: Array<{ key: string; weight: number }>
-      accounts: Array<{ permission: { actor: string; permission: string }; weight: number }>
-    }>
-    voter_info?: { producers: string[]; staked: number } | null
-  }
+  data: Record<string, any>
 }
 
 function ResourceDetail({ label, used, max, icon: Icon }: { label: string; used: number; max: number; icon: React.ElementType }) {
@@ -62,6 +47,10 @@ function ResourceDetail({ label, used, max, icon: Icon }: { label: string; used:
 }
 
 export function AccountDetail({ data }: AccountDetailProps) {
+  const ram = data.ram || { used: 0, quota: 0 }
+  const cpu = data.cpu || { used: 0, available: 0, max: 0 }
+  const net = data.net || { used: 0, available: 0, max: 0 }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
@@ -70,16 +59,16 @@ export function AccountDetail({ data }: AccountDetailProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        <Badge variant="secondary" className="text-sm">{data.balance}</Badge>
+        <Badge variant="secondary" className="text-sm">{data.balance || "0"}</Badge>
       </div>
 
       <Separator />
 
       <div className="space-y-4">
         <h3 className="text-sm font-medium">Resources</h3>
-        <ResourceDetail label="RAM" used={data.ram.used} max={data.ram.quota} icon={HardDrive} />
-        <ResourceDetail label="CPU" used={data.cpu.used} max={data.cpu.max} icon={Cpu} />
-        <ResourceDetail label="NET" used={data.net.used} max={data.net.max} icon={Wifi} />
+        <ResourceDetail label="RAM" used={ram.used || 0} max={ram.quota || 0} icon={HardDrive} />
+        <ResourceDetail label="CPU" used={cpu.used || 0} max={cpu.max || 0} icon={Cpu} />
+        <ResourceDetail label="NET" used={net.used || 0} max={net.max || 0} icon={Wifi} />
       </div>
 
       <Separator />
@@ -89,11 +78,11 @@ export function AccountDetail({ data }: AccountDetailProps) {
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div>
             <span className="text-muted-foreground">CPU Staked:</span>
-            <p className="font-medium">{data.cpu_staked}</p>
+            <p className="font-medium">{data.cpu_staked || "0"}</p>
           </div>
           <div>
             <span className="text-muted-foreground">NET Staked:</span>
-            <p className="font-medium">{data.net_staked}</p>
+            <p className="font-medium">{data.net_staked || "0"}</p>
           </div>
         </div>
       </div>
@@ -106,24 +95,24 @@ export function AccountDetail({ data }: AccountDetailProps) {
               <Shield className="h-3.5 w-3.5" />
               Permissions
             </h3>
-            {data.permissions.map((perm) => (
+            {data.permissions.map((perm: any) => (
               <div key={perm.name} className="bg-muted rounded-md p-2 text-xs space-y-1">
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-[10px]">{perm.name}</Badge>
                   {perm.parent && <span className="text-muted-foreground">parent: {perm.parent}</span>}
                   <span className="text-muted-foreground">threshold: {perm.threshold}</span>
                 </div>
-                {perm.keys.map((k, i) => (
+                {(perm.keys || []).map((k: any, i: number) => (
                   <div key={i} className="flex items-center gap-1 text-muted-foreground pl-2">
                     <Key className="h-3 w-3" />
                     <span className="font-mono truncate">{k.key}</span>
                     <span>w:{k.weight}</span>
                   </div>
                 ))}
-                {perm.accounts.map((a, i) => (
+                {(perm.accounts || []).map((a: any, i: number) => (
                   <div key={i} className="flex items-center gap-1 text-muted-foreground pl-2">
                     <User className="h-3 w-3" />
-                    <span>{a.permission.actor}@{a.permission.permission}</span>
+                    <span>{a.permission?.actor}@{a.permission?.permission}</span>
                     <span>w:{a.weight}</span>
                   </div>
                 ))}
@@ -143,7 +132,7 @@ export function AccountDetail({ data }: AccountDetailProps) {
             </p>
             {data.voter_info.producers?.length > 0 && (
               <div className="flex flex-wrap gap-1">
-                {data.voter_info.producers.map((p) => (
+                {data.voter_info.producers.map((p: any) => (
                   <Badge key={p} variant="secondary" className="text-[10px]">{p}</Badge>
                 ))}
               </div>

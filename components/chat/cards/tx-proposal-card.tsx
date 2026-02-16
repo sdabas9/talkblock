@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { FileSignature, Send, Loader2, Check, X, Pencil } from "lucide-react"
+import { FileSignature, Send, Loader2, Check, X, Pencil, Link2, Terminal, Copy } from "lucide-react"
 import { useWallet } from "@/lib/stores/wallet-store"
+import { useChain } from "@/lib/stores/chain-store"
+import { useDetailContext } from "@/lib/stores/context-store"
 
 interface TxAction {
   account: string
@@ -27,10 +29,15 @@ interface TxProposalCardProps {
 
 export function TxProposalCard({ data, onTxError }: TxProposalCardProps) {
   const { session, transact } = useWallet()
+  const { chainName, endpoint, hyperionEndpoint } = useChain()
+  const { setContext } = useDetailContext()
   const [signing, setSigning] = useState(false)
   const [txResult, setTxResult] = useState<string | null>(null)
   const [txError, setTxError] = useState<string | null>(null)
   const [dismissed, setDismissed] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [showCleos, setShowCleos] = useState(false)
+  const [cleosCopied, setCleosCopied] = useState(false)
   const [editableActions, setEditableActions] = useState<TxAction[]>(
     () => data.actions.map((a) => ({ ...a, data: { ...a.data } }))
   )
@@ -83,6 +90,12 @@ export function TxProposalCard({ data, onTxError }: TxProposalCardProps) {
   const isEdited = JSON.stringify(editableActions) !== JSON.stringify(data.actions)
   const description = isEdited ? summarizeActions(editableActions) : data.description
 
+  const cleosCommand = editableActions.map((action) => {
+    const dataJson = JSON.stringify(action.data)
+    const perm = session?.actor ? `${session.actor}@${session.permission || "active"}` : "<account>@active"
+    return `cleos${endpoint ? ` -u ${endpoint}` : ""} push action ${action.account} ${action.name} '${dataJson}' -p ${perm}`
+  }).join(" && \\\n")
+
   const handleSign = async () => {
     setSigning(true)
     setTxError(null)
@@ -92,9 +105,15 @@ export function TxProposalCard({ data, onTxError }: TxProposalCardProps) {
       setTxResult(txId)
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : "Transaction failed"
-      setTxError(errorMsg)
-      if (onTxError) {
-        onTxError(errorMsg, editableActions)
+      // User closed the signing modal — not a real error
+      const cancelled = /modal closed|cancelled|canceled|user rejected|rejected by user/i.test(errorMsg)
+      if (cancelled) {
+        // Just reset signing state, don't show error
+      } else {
+        setTxError(errorMsg)
+        if (onTxError) {
+          onTxError(errorMsg, editableActions)
+        }
       }
     } finally {
       setSigning(false)
@@ -115,8 +134,8 @@ export function TxProposalCard({ data, onTxError }: TxProposalCardProps) {
         <CardTitle className="text-sm flex items-center gap-2">
           <FileSignature className="h-4 w-4" />
           Transaction Proposal
-          <Badge variant="outline" className="ml-auto text-xs">
-            {txResult ? "Broadcast" : txError ? "Failed" : data.status === "pending_signature" ? "Pending" : data.status}
+          <Badge variant={txResult ? "default" : "outline"} className={`ml-auto text-xs ${txResult ? "bg-green-600 hover:bg-green-600" : ""}`}>
+            {txResult ? "Executed" : txError ? "Failed" : data.status === "pending_signature" ? "Pending" : data.status}
           </Badge>
           {!txResult && (
             <Button
@@ -160,10 +179,74 @@ export function TxProposalCard({ data, onTxError }: TxProposalCardProps) {
             </div>
           ))}
         </div>
+        <div>
+          <button
+            onClick={() => setShowCleos((v) => !v)}
+            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Terminal className="h-3 w-3" />
+            {showCleos ? "Hide" : "Show"} cleos command
+          </button>
+          {showCleos && (
+            <div className="mt-1.5 relative group/cleos">
+              <pre className="text-[11px] font-mono bg-zinc-950 text-zinc-300 rounded-md p-3 overflow-x-auto whitespace-pre-wrap break-all">
+                {cleosCommand}
+              </pre>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(cleosCommand)
+                  setCleosCopied(true)
+                  setTimeout(() => setCleosCopied(false), 2000)
+                }}
+                className="absolute top-1.5 right-1.5 p-1 rounded bg-zinc-800 hover:bg-zinc-700 transition-colors opacity-0 group-hover/cleos:opacity-100"
+                title="Copy command"
+              >
+                {cleosCopied ? <Check className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3 text-zinc-400" />}
+              </button>
+            </div>
+          )}
+        </div>
         {txResult ? (
           <div className="flex items-center gap-2 text-sm text-green-500">
-            <Check className="h-4 w-4" />
-            <span className="font-mono text-xs truncate">{txResult}</span>
+            <Check className="h-4 w-4 shrink-0" />
+            <button
+              onClick={async () => {
+                try {
+                  const ep = endpoint || hyperionEndpoint
+                  if (!ep) return
+                  const res = await fetch("/api/lookup", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      type: "transaction",
+                      id: txResult,
+                      endpoint: endpoint || "",
+                      hyperionEndpoint: hyperionEndpoint || "",
+                    }),
+                  })
+                  if (res.ok) {
+                    const tx = await res.json()
+                    setContext("transaction", tx)
+                  }
+                } catch { /* ignore fetch errors */ }
+              }}
+              className="font-mono text-xs truncate cursor-pointer"
+              title="View transaction details"
+            >
+              {txResult}
+            </button>
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/?chain=${encodeURIComponent(chainName || "")}&tx=${encodeURIComponent(txResult)}`
+                navigator.clipboard.writeText(url)
+                setCopied(true)
+                setTimeout(() => setCopied(false), 2000)
+              }}
+              className="shrink-0 p-0.5 rounded hover:bg-accent transition-colors"
+              title="Copy shareable link"
+            >
+              {copied ? <Check className="h-3 w-3 text-green-500" /> : <Link2 className="h-3 w-3 text-muted-foreground" />}
+            </button>
           </div>
         ) : txError ? (
           <div className="space-y-2">

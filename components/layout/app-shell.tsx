@@ -12,6 +12,7 @@ import { DashboardProvider } from "@/lib/stores/dashboard-store"
 import { CreditsProvider } from "@/lib/stores/credits-store"
 import { Header } from "./header"
 import { LeftPanel } from "./left-panel"
+import { RightPanel } from "./right-panel"
 import { Github } from "lucide-react"
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -33,6 +34,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <main className="flex-1 flex flex-col overflow-hidden">
                     {children}
                   </main>
+                  <RightPanel />
                 </div>
                 <footer className="border-t px-4 py-1.5 flex items-center justify-between text-[11px] text-muted-foreground/60 shrink-0">
                   <span>Talkblock is experimental. AI responses may be inaccurate. Always verify transactions before signing.</span>

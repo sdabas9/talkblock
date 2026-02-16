@@ -616,10 +616,11 @@ export function createChainTools(endpoint: string | null, hyperionEndpoint: stri
             }
             return a
           })
+          const firstAction = actions[0] as Record<string, any> | undefined
           return {
             id: result.trx_id || transaction_id,
-            block_num: result.block_num,
-            block_time: result.block_time,
+            block_num: result.block_num ?? firstAction?.block_num,
+            block_time: result.block_time ?? firstAction?.["@timestamp"] ?? firstAction?.timestamp,
             actions,
             executed: result.executed,
           }

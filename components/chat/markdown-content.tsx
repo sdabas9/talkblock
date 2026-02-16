@@ -2,12 +2,33 @@
 
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { useChain } from "@/lib/stores/chain-store"
+import { useDetailContext } from "@/lib/stores/context-store"
+import { isAccountName, isTxId, stripPermission, fetchAccountData, fetchTxData } from "@/lib/antelope/lookup"
 
 interface MarkdownContentProps {
   content: string
 }
 
 export function MarkdownContent({ content }: MarkdownContentProps) {
+  const { endpoint, hyperionEndpoint } = useChain()
+  const { setContext } = useDetailContext()
+
+  const lookupAccount = async (name: string) => {
+    if (!endpoint) { console.warn("lookupAccount: no endpoint"); return }
+    try {
+      const data = await fetchAccountData(name, endpoint)
+      setContext("account", data)
+    } catch (e) { console.error("lookupAccount failed:", e) }
+  }
+
+  const lookupTx = async (txId: string) => {
+    try {
+      const data = await fetchTxData(txId, endpoint, hyperionEndpoint)
+      if (data) setContext("transaction", data)
+    } catch (e) { console.error("lookupTx failed:", e) }
+  }
+
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -17,9 +38,34 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
             {children}
           </pre>
         ),
-        code: ({ children, className }) => {
-          const isInline = !className
-          if (isInline) {
+        code: ({ children, className, node, ...rest }) => {
+          // In react-markdown v10, inline code has no className and is not inside a <pre>
+          const isBlock = className || (node?.position && rest && "inline" in rest && !rest.inline)
+          if (!isBlock) {
+            const raw = String(children).trim()
+            const text = stripPermission(raw) // handle "account@active"
+            if (isTxId(text)) {
+              return (
+                <code
+                  className="bg-background/50 px-1 py-0.5 rounded text-xs text-primary cursor-pointer"
+                  onClick={() => lookupTx(text)}
+                  title="View transaction details"
+                >
+                  {children}
+                </code>
+              )
+            }
+            if (isAccountName(text)) {
+              return (
+                <code
+                  className="bg-background/50 px-1 py-0.5 rounded text-xs text-primary cursor-pointer"
+                  onClick={() => lookupAccount(text)}
+                  title="View account details"
+                >
+                  {children}
+                </code>
+              )
+            }
             return (
               <code className="bg-background/50 px-1 py-0.5 rounded text-xs">
                 {children}
