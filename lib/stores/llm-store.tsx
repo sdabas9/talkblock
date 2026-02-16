@@ -30,7 +30,6 @@ function apiKeyStorageKey(provider: string) {
 interface LLMState {
   config: LLMConfig | null
   hasApiKey: boolean
-  availableModels: string[]
   isConfigured: boolean
   llmMode: LLMMode
   setLLMMode: (mode: LLMMode) => void
@@ -51,7 +50,7 @@ export function LLMProvider({ children }: { children: ReactNode }) {
 
   const isAuthed = !!user
 
-  // Load config from localStorage on mount
+  // Load config from localStorage on mount; force BYOK when unauthed
   useEffect(() => {
     const provider = localStorage.getItem("llm_provider") as LLMProviderType | null
     const model = localStorage.getItem("llm_model")
@@ -67,16 +66,35 @@ export function LLMProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem("llm_api_key")
       setHasApiKey(true)
     }
-    if (mode) setLLMModeState(mode)
+    // Without Supabase, built-in mode can't work — force BYOK
+    const effectiveMode = !isAuthed && (!mode || mode === "builtin") ? "byok" : mode
+    if (effectiveMode) {
+      setLLMModeState(effectiveMode)
+      localStorage.setItem("llm_mode", effectiveMode)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const syncToServer = useCallback(async (updates: Record<string, unknown>) => {
+    const token = localStorage.getItem("auth_token")
+    if (!token) return
+    try {
+      await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(updates),
+      })
+    } catch {
+      // Server sync failed silently — localStorage is still the source of truth
+    }
   }, [])
 
-  // Without Supabase, built-in mode can't work — force BYOK
-  useEffect(() => {
-    if (!isAuthed && llmMode === "builtin") {
-      setLLMModeState("byok")
-      localStorage.setItem("llm_mode", "byok")
-    }
-  }, [isAuthed, llmMode])
+  const applyBuiltinDefaults = useCallback(() => {
+    const defaultModel = DEFAULT_MODELS.chutes[0]
+    setConfig({ provider: "chutes", model: defaultModel })
+    localStorage.setItem("llm_provider", "chutes")
+    localStorage.setItem("llm_model", defaultModel)
+    return { llm_provider: "chutes" as const, llm_model: defaultModel }
+  }, [])
 
   // When authed, sync non-key settings from server
   useEffect(() => {
@@ -98,56 +116,29 @@ export function LLMProvider({ children }: { children: ReactNode }) {
           localStorage.setItem("llm_model", data.llm_model)
           setHasApiKey(!!localStorage.getItem(apiKeyStorageKey(data.llm_provider)))
         } else if (serverMode === "builtin") {
-          const defaultModel = DEFAULT_MODELS.chutes[0]
-          setConfig({ provider: "chutes", model: defaultModel })
-          localStorage.setItem("llm_provider", "chutes")
-          localStorage.setItem("llm_model", defaultModel)
+          applyBuiltinDefaults()
         }
       })
       .catch(console.error)
-  }, [isAuthed])
-
-  const syncToServer = useCallback(async (updates: Record<string, unknown>) => {
-    const token = localStorage.getItem("auth_token")
-    if (!token) return
-    try {
-      await fetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(updates),
-      })
-    } catch {
-      // Server sync failed silently — localStorage is still the source of truth
-    }
-  }, [])
+  }, [isAuthed, applyBuiltinDefaults])
 
   const setLLMMode = useCallback((mode: LLMMode) => {
     setLLMModeState(mode)
     localStorage.setItem("llm_mode", mode)
+    const serverPayload: Record<string, unknown> = { llm_mode: mode }
     if (mode === "builtin") {
-      const defaultModel = DEFAULT_MODELS.chutes[0]
-      setConfig({ provider: "chutes", model: defaultModel })
-      localStorage.setItem("llm_provider", "chutes")
-      localStorage.setItem("llm_model", defaultModel)
+      Object.assign(serverPayload, applyBuiltinDefaults())
     }
-    if (isAuthed) {
-      if (mode === "builtin") {
-        const defaultModel = DEFAULT_MODELS.chutes[0]
-        syncToServer({ llm_mode: mode, llm_provider: "chutes", llm_model: defaultModel })
-      } else {
-        syncToServer({ llm_mode: mode })
-      }
-    }
-  }, [isAuthed, syncToServer])
+    if (isAuthed) syncToServer(serverPayload)
+  }, [isAuthed, syncToServer, applyBuiltinDefaults])
 
   const setProvider = useCallback((provider: LLMProviderType) => {
-    const models = DEFAULT_MODELS[provider]
-    const newConfig = { provider, model: models[0] }
-    setConfig(newConfig)
+    const defaultModel = DEFAULT_MODELS[provider][0]
+    setConfig({ provider, model: defaultModel })
     localStorage.setItem("llm_provider", provider)
-    localStorage.setItem("llm_model", models[0])
+    localStorage.setItem("llm_model", defaultModel)
     setHasApiKey(!!localStorage.getItem(apiKeyStorageKey(provider)))
-    if (isAuthed) syncToServer({ llm_provider: provider, llm_model: models[0] })
+    if (isAuthed) syncToServer({ llm_provider: provider, llm_model: defaultModel })
   }, [isAuthed, syncToServer])
 
   const setApiKey = useCallback(async (apiKey: string) => {
@@ -172,13 +163,11 @@ export function LLMProvider({ children }: { children: ReactNode }) {
   const getClientConfig = useCallback(() => {
     // In builtin mode, only skip if user is actually authed (Supabase available)
     if (llmMode === "builtin" && isAuthed) return null
-    const provider = localStorage.getItem("llm_provider")
-    const model = localStorage.getItem("llm_model")
-    if (!provider || !model) return null
-    const apiKey = localStorage.getItem(apiKeyStorageKey(provider))
+    if (!config) return null
+    const apiKey = localStorage.getItem(apiKeyStorageKey(config.provider))
     if (!apiKey) return null
-    return { provider, model, apiKey }
-  }, [llmMode, isAuthed])
+    return { provider: config.provider, model: config.model, apiKey }
+  }, [llmMode, isAuthed, config])
 
   const isConfigured = llmMode === "builtin"
     ? !!user
@@ -189,7 +178,6 @@ export function LLMProvider({ children }: { children: ReactNode }) {
       value={{
         config,
         hasApiKey,
-        availableModels: config ? DEFAULT_MODELS[config.provider] || [] : [],
         isConfigured,
         llmMode,
         setLLMMode,
