@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, ReactNode } from "react"
 
-type ContextType = "account" | "block" | "transaction" | null
+type ContextType = "account" | "block" | "transaction" | "table" | "action" | null
 
 interface ContextState {
   type: ContextType

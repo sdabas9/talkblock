@@ -324,7 +324,20 @@ export function ChatPanel() {
               </div>
             </div>
           ) : (
-            messages
+            (() => {
+              // Extract table references from all messages in the conversation
+              const allTableRefs = messages.flatMap((m) =>
+                m.parts
+                  .filter((p) => isToolUIPart(p) && getToolName(p) === "get_table_rows" && p.state === "output-available")
+                  .map((p) => (p as { output: Record<string, unknown> }).output)
+              )
+              // Extract ABI references (contract name + table list)
+              const allAbiRefs = messages.flatMap((m) =>
+                m.parts
+                  .filter((p) => isToolUIPart(p) && (getToolName(p) === "get_abi" || getToolName(p) === "get_abi_snapshot") && p.state === "output-available")
+                  .map((p) => (p as { output: Record<string, unknown> }).output)
+              )
+              return messages
               .filter((message) => {
                 // Hide system trigger messages from display
                 if (message.role === "user" && message.parts.length === 1 && message.parts[0].type === "text") {
@@ -352,7 +365,7 @@ export function ChatPanel() {
                           </span>
                         )
                       }
-                      return <MarkdownContent key={i} content={part.text} />
+                      return <MarkdownContent key={i} content={part.text} tableRefs={allTableRefs} abiRefs={allAbiRefs} />
                     }
                     return <span key={i}>{part.text}</span>
                   }
@@ -381,6 +394,7 @@ export function ChatPanel() {
                 })}
               </ChatMessage>
             ))
+            })()
           )}
 
           {outOfCredits && (

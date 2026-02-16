@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { TableIcon } from "lucide-react"
+import { useDetailContext } from "@/lib/stores/context-store"
 
 interface TableCardProps {
   data: {
@@ -17,6 +18,8 @@ interface TableCardProps {
 }
 
 export function TableCard({ data }: TableCardProps) {
+  const { setContext } = useDetailContext()
+
   if (!data.rows || data.rows.length === 0) {
     return (
       <Card className="my-2">
@@ -30,7 +33,7 @@ export function TableCard({ data }: TableCardProps) {
   const columns = Object.keys(data.rows[0])
 
   return (
-    <Card className="my-2 overflow-hidden">
+    <Card onClick={() => setContext("table", data)} className="my-2 overflow-hidden cursor-pointer hover:bg-accent/50 transition-colors">
       <CardHeader className="pb-2 pt-3 px-4 space-y-1.5">
         <CardTitle className="text-sm flex items-center gap-2">
           <TableIcon className="h-4 w-4" />

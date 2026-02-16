@@ -6,13 +6,75 @@ import { useChain } from "@/lib/stores/chain-store"
 import { useDetailContext } from "@/lib/stores/context-store"
 import { isAccountName, isTxId, stripPermission, fetchAccountData, fetchTxData } from "@/lib/antelope/lookup"
 
-interface MarkdownContentProps {
-  content: string
+interface TableRef {
+  code?: unknown
+  table?: unknown
+  scope?: unknown
+  rows?: unknown
+  more?: unknown
+  [key: string]: unknown
 }
 
-export function MarkdownContent({ content }: MarkdownContentProps) {
+interface AbiRef {
+  account_name?: unknown
+  tables?: unknown[]
+  [key: string]: unknown
+}
+
+interface MarkdownContentProps {
+  content: string
+  tableRefs?: TableRef[]
+  abiRefs?: AbiRef[]
+}
+
+export function MarkdownContent({ content, tableRefs = [], abiRefs = [] }: MarkdownContentProps) {
   const { endpoint, hyperionEndpoint } = useChain()
   const { setContext } = useDetailContext()
+
+  const findTableRef = (text: string): TableRef | undefined => {
+    return tableRefs.find(
+      (t) => String(t.table || "") === text || String(t.code || "") === text
+    )
+  }
+
+  const findAbiTable = (text: string): { code: string; table: string } | undefined => {
+    for (const abi of abiRefs) {
+      const tables = abi.tables as string[] | undefined
+      const code = String(abi.account_name || "")
+      if (code && tables?.includes(text)) {
+        return { code, table: text }
+      }
+    }
+    return undefined
+  }
+
+  const findAbiAction = (text: string): { account_name: string; action_name: string; fields: Array<{ name: string; type: string }> } | undefined => {
+    for (const abi of abiRefs) {
+      const actions = abi.actions as string[] | undefined
+      const structs = abi.structs as Array<{ name: string; fields: Array<{ name: string; type: string }> }> | undefined
+      const code = String(abi.account_name || "")
+      if (code && actions?.includes(text)) {
+        const struct = structs?.find((s) => s.name === text)
+        return { account_name: code, action_name: text, fields: struct?.fields || [] }
+      }
+    }
+    return undefined
+  }
+
+  const lookupTable = async (code: string, table: string) => {
+    if (!endpoint) return
+    try {
+      const res = await fetch("/api/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "table", code, table, scope: code, endpoint }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setContext("table", { code, table, scope: code, ...data })
+      }
+    } catch { /* ignore */ }
+  }
 
   const lookupAccount = async (name: string) => {
     if (!endpoint) { console.warn("lookupAccount: no endpoint"); return }
@@ -50,6 +112,42 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
                   className="bg-background/50 px-1 py-0.5 rounded text-xs text-primary cursor-pointer"
                   onClick={() => lookupTx(text)}
                   title="View transaction details"
+                >
+                  {children}
+                </code>
+              )
+            }
+            const tableMatch = findTableRef(text)
+            if (tableMatch) {
+              return (
+                <code
+                  className="bg-background/50 px-1 py-0.5 rounded text-xs text-primary cursor-pointer"
+                  onClick={() => setContext("table", tableMatch)}
+                  title="View table data"
+                >
+                  {children}
+                </code>
+              )
+            }
+            const abiMatch = findAbiTable(text)
+            if (abiMatch) {
+              return (
+                <code
+                  className="bg-background/50 px-1 py-0.5 rounded text-xs text-primary cursor-pointer"
+                  onClick={() => lookupTable(abiMatch.code, abiMatch.table)}
+                  title={`Query ${abiMatch.code} / ${abiMatch.table}`}
+                >
+                  {children}
+                </code>
+              )
+            }
+            const actionMatch = findAbiAction(text)
+            if (actionMatch) {
+              return (
+                <code
+                  className="bg-background/50 px-1 py-0.5 rounded text-xs text-primary cursor-pointer"
+                  onClick={() => setContext("action", actionMatch)}
+                  title={`Execute ${actionMatch.account_name}::${actionMatch.action_name}`}
                 >
                   {children}
                 </code>
@@ -106,6 +204,42 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
         strong: ({ children }) => {
           const raw = String(children).trim()
           const text = stripPermission(raw)
+          const strongTableMatch = findTableRef(text)
+          if (strongTableMatch) {
+            return (
+              <strong
+                className="text-primary cursor-pointer"
+                onClick={() => setContext("table", strongTableMatch)}
+                title="View table data"
+              >
+                {children}
+              </strong>
+            )
+          }
+          const strongAbiMatch = findAbiTable(text)
+          if (strongAbiMatch) {
+            return (
+              <strong
+                className="text-primary cursor-pointer"
+                onClick={() => lookupTable(strongAbiMatch.code, strongAbiMatch.table)}
+                title={`Query ${strongAbiMatch.code} / ${strongAbiMatch.table}`}
+              >
+                {children}
+              </strong>
+            )
+          }
+          const strongActionMatch = findAbiAction(text)
+          if (strongActionMatch) {
+            return (
+              <strong
+                className="text-primary cursor-pointer"
+                onClick={() => setContext("action", strongActionMatch)}
+                title={`Execute ${strongActionMatch.account_name}::${strongActionMatch.action_name}`}
+              >
+                {children}
+              </strong>
+            )
+          }
           if (isTxId(text)) {
             return (
               <strong

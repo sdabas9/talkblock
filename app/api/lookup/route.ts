@@ -3,14 +3,16 @@ import { AntelopeClient } from "@/lib/antelope/client"
 import { HyperionClient } from "@/lib/antelope/hyperion"
 
 export async function POST(req: NextRequest) {
-  const { type, id, endpoint, hyperionEndpoint } = await req.json()
+  const body = await req.json()
+  const { type, id, endpoint, hyperionEndpoint } = body
 
-  if (!endpoint || !id || !type) {
+  if (!endpoint || !type) {
     return NextResponse.json({ error: "Missing params" }, { status: 400 })
   }
 
   try {
     if (type === "account") {
+      if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 })
       const client = new AntelopeClient(endpoint)
       const account = await client.getAccount(id)
       return NextResponse.json({
@@ -33,6 +35,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (type === "transaction") {
+      if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 })
       if (hyperionEndpoint) {
         const h = new HyperionClient(hyperionEndpoint)
         const result = await h.getTransaction(id)
@@ -55,6 +58,30 @@ export async function POST(req: NextRequest) {
           status: tx.trx?.receipt?.status,
         })
       }
+    }
+
+    if (type === "table") {
+      const { code, table, scope, limit, lower_bound, upper_bound, reverse } = body
+      if (!code || !table) {
+        return NextResponse.json({ error: "Missing code or table" }, { status: 400 })
+      }
+      const client = new AntelopeClient(endpoint)
+      const result = await client.getTableRows({
+        code,
+        table,
+        scope: scope || code,
+        limit: limit || 100,
+        ...(lower_bound ? { lower_bound } : {}),
+        ...(upper_bound ? { upper_bound } : {}),
+        ...(reverse ? { reverse: true } : {}),
+      })
+      return NextResponse.json({
+        code,
+        table,
+        scope: scope || code,
+        rows: result.rows || [],
+        more: result.more ?? false,
+      })
     }
 
     return NextResponse.json({ error: "Invalid type" }, { status: 400 })
