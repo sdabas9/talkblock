@@ -21,7 +21,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
-import { PanelLeft, MessageSquare, Plus, Trash2, LayoutDashboard, Sun, Moon, Settings } from "lucide-react"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { PanelLeft, MessageSquare, Plus, Trash2, LayoutDashboard, Sun, Moon, Settings, Link2, Bot } from "lucide-react"
 import { useState, useEffect } from "react"
 
 function useTheme() {
@@ -59,6 +60,7 @@ function UsageIndicator() {
 }
 
 export function Header() {
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const { toggleLeft, view, setView } = usePanels()
   const theme = useTheme()
   const { user } = useAuth()
@@ -76,35 +78,44 @@ export function Header() {
           </svg>
           <span>Talk<span className="font-normal">block</span></span>
         </h1>
-        <Dialog>
+        <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
           <DialogTrigger asChild>
             <Button variant="ghost" size="icon">
               <Settings className="h-4 w-4" />
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[85vh] flex flex-col gap-0 p-0">
+          <DialogContent className="max-w-lg max-h-[85vh] flex flex-col gap-0 p-0 dark:bg-zinc-900">
             <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Settings</DialogTitle>
             </DialogHeader>
-            <div className="overflow-y-auto px-6 pb-6 space-y-6">
-              <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Chain Connection</h3>
-                <ChainSelector inline />
-              </section>
-              <Separator />
-              <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">LLM Provider</h3>
-                <LLMSettings inline />
-              </section>
-              {user && llmMode === "builtin" && (
-                <>
-                  <Separator />
-                  <section>
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Usage & Credits</h3>
-                    <UsageSummary />
-                  </section>
-                </>
-              )}
+            <div className="overflow-y-auto px-6 pb-6 min-h-[420px]">
+              <Tabs defaultValue="chain">
+                <TabsList className="w-full">
+                  <TabsTrigger value="chain" className="flex-1 gap-1.5">
+                    <Link2 className="h-3.5 w-3.5" />
+                    Chain
+                  </TabsTrigger>
+                  <TabsTrigger value="ai" className="flex-1 gap-1.5">
+                    <Bot className="h-3.5 w-3.5" />
+                    AI
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="chain" className="mt-4">
+                  <ChainSelector inline />
+                </TabsContent>
+                <TabsContent value="ai" className="mt-4 space-y-6">
+                  <LLMSettings inline />
+                  {user && llmMode === "builtin" && (
+                    <>
+                      <Separator />
+                      <section>
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Usage & Credits</h3>
+                        <UsageSummary />
+                      </section>
+                    </>
+                  )}
+                </TabsContent>
+              </Tabs>
             </div>
           </DialogContent>
         </Dialog>

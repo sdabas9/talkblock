@@ -10,11 +10,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Loader2, Link2, Link2Off, Check } from "lucide-react"
+import { Loader2, Link2, Link2Off, Check, ChevronRight } from "lucide-react"
 
 function ChainContent() {
-  const { chainName, chainInfo, presets, connecting, error, connect, disconnect } = useChain()
+  const { chainName, chainInfo, presets, connecting, error, connect } = useChain()
   const [customUrl, setCustomUrl] = useState("")
+  const [customHyperion, setCustomHyperion] = useState("")
+  const [showCustom, setShowCustom] = useState(false)
 
   return (
     <div className="space-y-4">
@@ -38,23 +40,6 @@ function ChainContent() {
           ))}
         </div>
       </div>
-      <Separator />
-      <div>
-        <Label className="text-sm text-muted-foreground">Custom RPC Endpoint</Label>
-        <div className="flex gap-2 mt-2">
-          <Input
-            placeholder="https://your-endpoint.com"
-            value={customUrl}
-            onChange={(e) => setCustomUrl(e.target.value)}
-          />
-          <Button
-            onClick={() => connect(customUrl)}
-            disabled={connecting || !customUrl}
-          >
-            {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Connect"}
-          </Button>
-        </div>
-      </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       {chainInfo && (
         <>
@@ -74,12 +59,49 @@ function ChainContent() {
               <span className="text-muted-foreground">Producer</span>
               <span>{chainInfo.head_block_producer}</span>
             </div>
-            <Button variant="destructive" size="sm" className="w-full mt-2" onClick={disconnect}>
-              Disconnect
-            </Button>
           </div>
         </>
       )}
+      <Separator />
+      <div>
+        <button
+          onClick={() => setShowCustom(!showCustom)}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+        >
+          <ChevronRight className={`h-3 w-3 transition-transform ${showCustom ? "rotate-90" : ""}`} />
+          Custom Endpoints
+        </button>
+        {showCustom && (
+          <div className="space-y-2 mt-3">
+            <div>
+              <Label className="text-[11px] text-muted-foreground">RPC Endpoint</Label>
+              <Input
+                placeholder="https://your-rpc-endpoint.com"
+                value={customUrl}
+                onChange={(e) => setCustomUrl(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Hyperion Endpoint (optional)</Label>
+              <Input
+                placeholder="https://your-hyperion-endpoint.com"
+                value={customHyperion}
+                onChange={(e) => setCustomHyperion(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <Button
+              onClick={() => connect(customUrl, undefined, customHyperion || undefined)}
+              disabled={connecting || !customUrl}
+              className="w-full"
+              size="sm"
+            >
+              {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Connect"}
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

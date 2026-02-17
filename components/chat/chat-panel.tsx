@@ -136,20 +136,34 @@ export function ChatPanel() {
     }
   }, [activeConversationId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Save new messages to DB when they appear (not while streaming)
+  // Save new messages to DB — user messages saved immediately, assistant messages saved when streaming completes
   const prevMsgCountRef = useRef(0)
+  const savedAssistantIdRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     if (!activeConvRef.current) return
+
+    // When streaming just finished, save the final assistant message
+    if (prevStatusRef.current === "streaming" && status === "ready") {
+      const lastMsg = messages[messages.length - 1]
+      if (lastMsg?.role === "assistant" && !savedAssistantIdRef.current.has(lastMsg.id)) {
+        savedAssistantIdRef.current.add(lastMsg.id)
+        saveMessage(activeConvRef.current, lastMsg.role, lastMsg.parts)
+      }
+    }
+
     if (messages.length <= prevMsgCountRef.current) {
       prevMsgCountRef.current = messages.length
       return
     }
+
     const newMessages = messages.slice(prevMsgCountRef.current)
     prevMsgCountRef.current = messages.length
     for (const msg of newMessages) {
-      if (status !== "streaming") {
-        saveMessage(activeConvRef.current, msg.role, msg.parts)
-      }
+      // Skip assistant messages while streaming — they'll be saved when streaming ends
+      if (msg.role === "assistant" && status === "streaming") continue
+      if (msg.role === "assistant" && savedAssistantIdRef.current.has(msg.id)) continue
+      if (msg.role === "assistant") savedAssistantIdRef.current.add(msg.id)
+      saveMessage(activeConvRef.current, msg.role, msg.parts)
     }
   }, [messages, status, saveMessage])
 
