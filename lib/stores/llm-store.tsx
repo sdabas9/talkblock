@@ -23,6 +23,14 @@ export const CHUTES_MODEL_LABELS: Record<string, string> = {
   "moonshotai/Kimi-K2-Thinking-TEE": "Kimi K2 Thinking TEE",
 }
 
+
+export function getModelLabel(model: string): string {
+  if (CHUTES_MODEL_LABELS[model]) return CHUTES_MODEL_LABELS[model]
+  // Strip org prefix for models like "deepseek-ai/DeepSeek-V3"
+  const parts = model.split("/")
+  return parts[parts.length - 1]
+}
+
 function apiKeyStorageKey(provider: string) {
   return `llm_api_key_${provider}`
 }
