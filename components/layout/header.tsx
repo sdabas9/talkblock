@@ -3,7 +3,7 @@
 import { usePanels } from "@/lib/stores/panel-store"
 import { useAuth } from "@/lib/stores/auth-store"
 import { useConversations } from "@/lib/stores/conversation-store"
-import { useLLM } from "@/lib/stores/llm-store"
+import { useLLM, getModelLabel } from "@/lib/stores/llm-store"
 import { useCredits } from "@/lib/stores/credits-store"
 import { ChainSelector } from "@/components/chain/chain-selector"
 import { LLMSettings } from "@/components/settings/llm-settings"
@@ -60,10 +60,11 @@ function UsageIndicator() {
 }
 
 export function Header() {
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const { toggleLeft, view, setView } = usePanels()
   const theme = useTheme()
   const { user } = useAuth()
-  const { llmMode } = useLLM()
+  const { llmMode, config, isConfigured } = useLLM()
   const { conversations, activeConversationId, setActiveConversation, createConversation, deleteConversation } = useConversations()
 
   return (
@@ -77,7 +78,7 @@ export function Header() {
           </svg>
           <span>Talk<span className="font-normal">block</span></span>
         </h1>
-        <Dialog>
+        <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
           <DialogTrigger asChild>
             <Button variant="ghost" size="icon">
               <Settings className="h-4 w-4" />
@@ -118,6 +119,21 @@ export function Header() {
             </div>
           </DialogContent>
         </Dialog>
+        <button
+          onClick={() => setSettingsOpen(true)}
+          className="hidden sm:flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border bg-muted/50 hover:bg-muted transition-colors"
+        >
+          <span className={`h-1.5 w-1.5 rounded-full ${
+            isConfigured
+              ? llmMode === "builtin" ? "bg-green-500" : "bg-blue-500"
+              : "bg-yellow-500"
+          }`} />
+          <span className="max-w-[120px] truncate">
+            {isConfigured
+              ? `${getModelLabel(config?.model || "")} \u00b7 ${llmMode === "builtin" ? "Built-in" : "BYOK"}`
+              : "No AI \u00b7 Configure"}
+          </span>
+        </button>
         <Button variant="ghost" size="icon" onClick={toggleLeft}>
           <PanelLeft className="h-4 w-4" />
         </Button>
