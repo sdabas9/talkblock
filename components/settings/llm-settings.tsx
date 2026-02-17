@@ -1,6 +1,6 @@
 "use client"
 
-import { useLLM, LLMProviderType, CHUTES_MODEL_LABELS } from "@/lib/stores/llm-store"
+import { useLLM, LLMProviderType, getModelLabel } from "@/lib/stores/llm-store"
 import { useAuth } from "@/lib/stores/auth-store"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
@@ -46,7 +46,7 @@ function BuiltinPanel() {
           <SelectContent>
             {getModelsForProvider("chutes").map((m) => (
               <SelectItem key={m} value={m}>
-                {CHUTES_MODEL_LABELS[m] || m}
+                {getModelLabel(m)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -145,7 +145,7 @@ function BYOKPanel() {
               <SelectContent>
                 {getModelsForProvider(provider as LLMProviderType).map((m) => (
                   <SelectItem key={m} value={m}>
-                    {CHUTES_MODEL_LABELS[m] || m}
+                    {getModelLabel(m)}
                   </SelectItem>
                 ))}
               </SelectContent>
