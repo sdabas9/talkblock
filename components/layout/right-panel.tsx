@@ -3,7 +3,7 @@
 import React from "react"
 import { useDetailContext } from "@/lib/stores/context-store"
 import { Button } from "@/components/ui/button"
-import { X, ArrowLeft } from "lucide-react"
+import { X, ArrowLeft, Maximize2, Minimize2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { AccountDetail } from "@/components/context/account-detail"
 import { BlockDetail } from "@/components/context/block-detail"
@@ -21,7 +21,7 @@ class DetailErrorBoundary extends React.Component<
 }
 
 export function RightPanel() {
-  const { type, data, clearContext, parentAccount, backToAccount } = useDetailContext()
+  const { type, data, clearContext, parentAccount, backToAccount, expanded, toggleExpanded } = useDetailContext()
 
   const open = !!type && !!data
 
@@ -52,7 +52,7 @@ export function RightPanel() {
       className={cn(
         "border-l bg-muted/30 transition-all duration-300 overflow-hidden",
         "max-md:absolute max-md:right-0 max-md:z-20 max-md:h-full max-md:w-full",
-        open ? "w-[400px] max-md:w-full" : "w-0"
+        open ? (expanded ? "flex-1" : "w-[400px] max-md:w-full") : "w-0"
       )}
     >
       <div className="h-full overflow-y-auto">
@@ -68,9 +68,14 @@ export function RightPanel() {
                 {type ? type.charAt(0).toUpperCase() + type.slice(1) + " Details" : "Details"}
               </h3>
             </div>
-            <Button variant="ghost" size="icon" onClick={clearContext}>
-              <X className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" onClick={toggleExpanded} title={expanded ? "Collapse panel" : "Expand panel"}>
+                {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              </Button>
+              <Button variant="ghost" size="icon" onClick={clearContext}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           <DetailErrorBoundary key={detailKey} fallback={<pre className="text-xs overflow-auto">{JSON.stringify(data, null, 2)}</pre>}>
             {renderDetail()}

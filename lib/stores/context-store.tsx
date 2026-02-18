@@ -31,6 +31,8 @@ interface ContextState {
   backToAccount: () => void
   recentAccounts: RecentAccount[]
   clearRecents: () => void
+  expanded: boolean
+  toggleExpanded: () => void
 }
 
 const DetailContext = createContext<ContextState | null>(null)
@@ -40,6 +42,7 @@ export function ContextProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<any>(null)
   const [parentAccount, setParentAccount] = useState<any>(null)
   const [recentAccounts, setRecentAccounts] = useState<RecentAccount[]>([])
+  const [expanded, setExpanded] = useState(false)
   const typeRef = useRef<ContextType>(null)
   const dataRef = useRef<any>(null)
 
@@ -78,6 +81,11 @@ export function ContextProvider({ children }: { children: ReactNode }) {
     setType(null)
     setData(null)
     setParentAccount(null)
+    setExpanded(false)
+  }, [])
+
+  const toggleExpanded = useCallback(() => {
+    setExpanded((prev) => !prev)
   }, [])
 
   const backToAccount = useCallback(() => {
@@ -97,7 +105,7 @@ export function ContextProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <DetailContext.Provider value={{ type, data, setContext, clearContext, parentAccount, backToAccount, recentAccounts, clearRecents }}>
+    <DetailContext.Provider value={{ type, data, setContext, clearContext, parentAccount, backToAccount, recentAccounts, clearRecents, expanded, toggleExpanded }}>
       {children}
     </DetailContext.Provider>
   )
