@@ -45,7 +45,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     if (!res.ok) {
-      throw new Error("Authentication failed")
+      // Supabase auth is optional — silently skip if unavailable
+      return
     }
 
     const { token, user: userData } = await res.json()
