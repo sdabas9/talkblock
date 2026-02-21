@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { User, HardDrive, Cpu, Wifi, Key, Shield, Copy, Check, Database, Zap, Loader2, FileCode, Link2 } from "lucide-react"
+import { User, HardDrive, Cpu, Wifi, Key, Shield, Copy, Check, Database, Zap, Loader2, FileCode, Link2, Search } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { useChain } from "@/lib/stores/chain-store"
 import { useDetailContext } from "@/lib/stores/context-store"
 
@@ -64,6 +66,10 @@ export function AccountDetail({ data, expanded }: AccountDetailProps) {
   const [abiLoading, setAbiLoading] = useState(false)
   const [abiChecked, setAbiChecked] = useState(false)
 
+  // Expanded mode: account search
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchLoading, setSearchLoading] = useState(false)
+
   useEffect(() => {
     if (!endpoint || !data.account_name) return
     setAbiLoading(true)
@@ -113,12 +119,54 @@ export function AccountDetail({ data, expanded }: AccountDetailProps) {
     })
   }
 
+  const handleAccountSearch = async () => {
+    const q = searchQuery.trim()
+    if (!q || !endpoint) return
+    setSearchLoading(true)
+    try {
+      const res = await fetch("/api/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "account", id: q, endpoint }),
+      })
+      if (res.ok) {
+        const accountData = await res.json()
+        if (accountData.account_name) {
+          setContext("account", accountData)
+          setSearchQuery("")
+        }
+      }
+    } catch {}
+    finally { setSearchLoading(false) }
+  }
+
   const ram = data.ram || { used: 0, quota: 0 }
   const cpu = data.cpu || { used: 0, available: 0, max: 0 }
   const net = data.net || { used: 0, available: 0, max: 0 }
 
   return (
     <div className="space-y-4">
+      {expanded && (
+        <div className="flex gap-2 mb-4">
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAccountSearch()}
+            placeholder="Search account..."
+            className="h-8 text-sm font-mono"
+          />
+          <Button
+            variant="default"
+            size="sm"
+            className="h-8 px-3 shrink-0"
+            onClick={handleAccountSearch}
+            disabled={searchLoading || !searchQuery.trim()}
+          >
+            {searchLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+          </Button>
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
         <User className="h-5 w-5" />
         <h2 className="text-lg font-semibold">{data.account_name}</h2>
