@@ -10,6 +10,7 @@ import { useDetailContext } from "@/lib/stores/context-store"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface AccountDetailProps {
   data: Record<string, any>
+  expanded?: boolean
 }
 
 function ResourceDetail({ label, used, max, icon: Icon }: { label: string; used: number; max: number; icon: React.ElementType }) {
@@ -54,7 +55,7 @@ interface AbiAction { name: string; type: string; ricardian_contract?: string }
 interface AbiStruct { name: string; base: string; fields: { name: string; type: string }[] }
 interface AbiData { tables: AbiTable[]; actions: AbiAction[]; structs: AbiStruct[] }
 
-export function AccountDetail({ data }: AccountDetailProps) {
+export function AccountDetail({ data, expanded }: AccountDetailProps) {
   const [copied, setCopied] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
   const { endpoint, chainName } = useChain()

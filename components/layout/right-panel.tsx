@@ -33,7 +33,7 @@ export function RightPanel() {
   const renderDetail = () => {
     switch (type) {
       case "account":
-        return <AccountDetail data={data} />
+        return <AccountDetail data={data} expanded={expanded} />
       case "block":
         return <BlockDetail data={data} />
       case "transaction":
