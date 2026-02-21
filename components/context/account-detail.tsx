@@ -8,6 +8,9 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { useChain } from "@/lib/stores/chain-store"
 import { useDetailContext } from "@/lib/stores/context-store"
+import { TableDetail } from "@/components/context/table-detail"
+import { ActionDetail } from "@/components/context/action-detail"
+import { cn } from "@/lib/utils"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface AccountDetailProps {
@@ -70,6 +73,13 @@ export function AccountDetail({ data, expanded }: AccountDetailProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [searchLoading, setSearchLoading] = useState(false)
 
+  // Expanded mode: inline table/action selection
+  const [selectedTable, setSelectedTable] = useState<string | null>(null)
+  const [selectedAction, setSelectedAction] = useState<string | null>(null)
+  const [inlineTableData, setInlineTableData] = useState<any>(null)
+  const [inlineActionData, setInlineActionData] = useState<any>(null)
+  const [inlineLoading, setInlineLoading] = useState(false)
+
   useEffect(() => {
     if (!endpoint || !data.account_name) return
     setAbiLoading(true)
@@ -85,6 +95,13 @@ export function AccountDetail({ data, expanded }: AccountDetailProps) {
       .catch(() => {})
       .finally(() => { setAbiLoading(false); setAbiChecked(true) })
   }, [endpoint, data.account_name])
+
+  useEffect(() => {
+    setSelectedTable(null)
+    setSelectedAction(null)
+    setInlineTableData(null)
+    setInlineActionData(null)
+  }, [data.account_name])
 
   const handleTableClick = async (tableName: string) => {
     if (!endpoint) return
@@ -140,6 +157,47 @@ export function AccountDetail({ data, expanded }: AccountDetailProps) {
     finally { setSearchLoading(false) }
   }
 
+  const handleInlineTableClick = async (tableName: string) => {
+    if (!endpoint) return
+    setSelectedTable(tableName)
+    setSelectedAction(null)
+    setInlineActionData(null)
+    setInlineLoading(true)
+    try {
+      const res = await fetch("/api/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "table",
+          code: data.account_name,
+          table: tableName,
+          scope: data.account_name,
+          endpoint,
+        }),
+      })
+      if (res.ok) {
+        const tableData = await res.json()
+        setInlineTableData(tableData)
+      }
+    } catch {}
+    finally { setInlineLoading(false) }
+  }
+
+  const handleInlineActionClick = (actionName: string) => {
+    if (!abi) return
+    setSelectedAction(actionName)
+    setSelectedTable(null)
+    setInlineTableData(null)
+    const action = abi.actions.find((a) => a.name === actionName)
+    if (!action) return
+    const struct = abi.structs.find((s) => s.name === action.type)
+    setInlineActionData({
+      account_name: data.account_name,
+      action_name: actionName,
+      fields: struct?.fields || [],
+    })
+  }
+
   const ram = data.ram || { used: 0, quota: 0 }
   const cpu = data.cpu || { used: 0, available: 0, max: 0 }
   const net = data.net || { used: 0, available: 0, max: 0 }
@@ -167,117 +225,145 @@ export function AccountDetail({ data, expanded }: AccountDetailProps) {
         </div>
       )}
 
-      <div className="flex items-center gap-2">
-        <User className="h-5 w-5" />
-        <h2 className="text-lg font-semibold">{data.account_name}</h2>
-        <button
-          onClick={() => {
-            navigator.clipboard.writeText(data.account_name)
-            setCopied(true)
-            setTimeout(() => setCopied(false), 2000)
-          }}
-          className="p-0.5 rounded hover:bg-accent transition-colors"
-          title="Copy account name"
-        >
-          {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
-        </button>
-        <button
-          onClick={() => {
-            const url = `${window.location.origin}/?chain=${encodeURIComponent(chainName || "")}&account=${encodeURIComponent(data.account_name)}`
-            navigator.clipboard.writeText(url)
-            setLinkCopied(true)
-            setTimeout(() => setLinkCopied(false), 2000)
-          }}
-          className="p-0.5 rounded hover:bg-accent transition-colors"
-          title="Copy shareable link"
-        >
-          {linkCopied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Link2 className="h-3.5 w-3.5 text-muted-foreground" />}
-        </button>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Badge variant="secondary" className="text-sm">{data.balance || "0"}</Badge>
-      </div>
-
-      <Separator />
-
-      <div className="space-y-4">
-        <h3 className="text-sm font-medium">Resources</h3>
-        <ResourceDetail label="RAM" used={ram.used || 0} max={ram.quota || 0} icon={HardDrive} />
-        <ResourceDetail label="CPU" used={cpu.used || 0} max={cpu.max || 0} icon={Cpu} />
-        <ResourceDetail label="NET" used={net.used || 0} max={net.max || 0} icon={Wifi} />
-      </div>
-
-      <Separator />
-
-      <div className="space-y-2">
-        <h3 className="text-sm font-medium">Staking</h3>
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          <div>
-            <span className="text-muted-foreground">CPU Staked:</span>
-            <p className="font-medium">{data.cpu_staked || "0"}</p>
-          </div>
-          <div>
-            <span className="text-muted-foreground">NET Staked:</span>
-            <p className="font-medium">{data.net_staked || "0"}</p>
-          </div>
+      {/* Compact header for expanded mode */}
+      {expanded ? (
+        <div className="flex items-center gap-2">
+          <User className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-semibold">{data.account_name}</span>
+          <Badge variant="secondary" className="text-xs">{data.balance || "0"}</Badge>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(data.account_name)
+              setCopied(true)
+              setTimeout(() => setCopied(false), 2000)
+            }}
+            className="p-0.5 rounded hover:bg-accent transition-colors"
+            title="Copy account name"
+          >
+            {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
+          </button>
         </div>
-      </div>
-
-      {data.permissions && data.permissions.length > 0 && (
+      ) : (
         <>
-          <Separator />
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium flex items-center gap-1.5">
-              <Shield className="h-3.5 w-3.5" />
-              Permissions
-            </h3>
-            {data.permissions.map((perm: any) => (
-              <div key={perm.name} className="bg-muted rounded-md p-2 text-xs space-y-1">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-[10px]">{perm.name}</Badge>
-                  {perm.parent && <span className="text-muted-foreground">parent: {perm.parent}</span>}
-                  <span className="text-muted-foreground">threshold: {perm.threshold}</span>
-                </div>
-                {(perm.keys || []).map((k: any, i: number) => (
-                  <div key={i} className="flex items-center gap-1 text-muted-foreground pl-2">
-                    <Key className="h-3 w-3" />
-                    <span className="font-mono truncate">{k.key}</span>
-                    <span>w:{k.weight}</span>
-                  </div>
-                ))}
-                {(perm.accounts || []).map((a: any, i: number) => (
-                  <div key={i} className="flex items-center gap-1 text-muted-foreground pl-2">
-                    <User className="h-3 w-3" />
-                    <span>{a.permission?.actor}@{a.permission?.permission}</span>
-                    <span>w:{a.weight}</span>
-                  </div>
-                ))}
-              </div>
-            ))}
+          <div className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            <h2 className="text-lg font-semibold">{data.account_name}</h2>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(data.account_name)
+                setCopied(true)
+                setTimeout(() => setCopied(false), 2000)
+              }}
+              className="p-0.5 rounded hover:bg-accent transition-colors"
+              title="Copy account name"
+            >
+              {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
+            </button>
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/?chain=${encodeURIComponent(chainName || "")}&account=${encodeURIComponent(data.account_name)}`
+                navigator.clipboard.writeText(url)
+                setLinkCopied(true)
+                setTimeout(() => setLinkCopied(false), 2000)
+              }}
+              className="p-0.5 rounded hover:bg-accent transition-colors"
+              title="Copy shareable link"
+            >
+              {linkCopied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Link2 className="h-3.5 w-3.5 text-muted-foreground" />}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="text-sm">{data.balance || "0"}</Badge>
           </div>
         </>
       )}
 
-      {data.voter_info && (
+      {/* Non-expanded: show resources, staking, permissions, voting */}
+      {!expanded && (
         <>
           <Separator />
+
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium">Resources</h3>
+            <ResourceDetail label="RAM" used={ram.used || 0} max={ram.quota || 0} icon={HardDrive} />
+            <ResourceDetail label="CPU" used={cpu.used || 0} max={cpu.max || 0} icon={Cpu} />
+            <ResourceDetail label="NET" used={net.used || 0} max={net.max || 0} icon={Wifi} />
+          </div>
+
+          <Separator />
+
           <div className="space-y-2">
-            <h3 className="text-sm font-medium">Voting</h3>
-            <p className="text-xs text-muted-foreground">
-              Staked: {data.voter_info.staked?.toLocaleString() || 0}
-            </p>
-            {data.voter_info.producers?.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {data.voter_info.producers.map((p: any) => (
-                  <Badge key={p} variant="secondary" className="text-[10px]">{p}</Badge>
+            <h3 className="text-sm font-medium">Staking</h3>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <span className="text-muted-foreground">CPU Staked:</span>
+                <p className="font-medium">{data.cpu_staked || "0"}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">NET Staked:</span>
+                <p className="font-medium">{data.net_staked || "0"}</p>
+              </div>
+            </div>
+          </div>
+
+          {data.permissions && data.permissions.length > 0 && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium flex items-center gap-1.5">
+                  <Shield className="h-3.5 w-3.5" />
+                  Permissions
+                </h3>
+                {data.permissions.map((perm: any) => (
+                  <div key={perm.name} className="bg-muted rounded-md p-2 text-xs space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-[10px]">{perm.name}</Badge>
+                      {perm.parent && <span className="text-muted-foreground">parent: {perm.parent}</span>}
+                      <span className="text-muted-foreground">threshold: {perm.threshold}</span>
+                    </div>
+                    {(perm.keys || []).map((k: any, i: number) => (
+                      <div key={i} className="flex items-center gap-1 text-muted-foreground pl-2">
+                        <Key className="h-3 w-3" />
+                        <span className="font-mono truncate">{k.key}</span>
+                        <span>w:{k.weight}</span>
+                      </div>
+                    ))}
+                    {(perm.accounts || []).map((a: any, i: number) => (
+                      <div key={i} className="flex items-center gap-1 text-muted-foreground pl-2">
+                        <User className="h-3 w-3" />
+                        <span>{a.permission?.actor}@{a.permission?.permission}</span>
+                        <span>w:{a.weight}</span>
+                      </div>
+                    ))}
+                  </div>
                 ))}
               </div>
-            )}
-          </div>
+            </>
+          )}
+
+          {data.voter_info && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Voting</h3>
+                <p className="text-xs text-muted-foreground">
+                  Staked: {data.voter_info.staked?.toLocaleString() || 0}
+                </p>
+                {data.voter_info.producers?.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {data.voter_info.producers.map((p: any) => (
+                      <Badge key={p} variant="secondary" className="text-[10px]">{p}</Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </>
       )}
 
+      {/* ABI loading - both modes */}
       {abiLoading && (
         <>
           <Separator />
@@ -288,7 +374,8 @@ export function AccountDetail({ data, expanded }: AccountDetailProps) {
         </>
       )}
 
-      {abiChecked && abi && (
+      {/* Non-expanded: original contract button layout */}
+      {abiChecked && abi && !expanded && (
         <>
           <Separator />
           <div className="space-y-2">
@@ -338,6 +425,94 @@ export function AccountDetail({ data, expanded }: AccountDetailProps) {
             )}
           </div>
         </>
+      )}
+
+      {/* Expanded: side-by-side layout */}
+      {abiChecked && abi && expanded && (
+        <>
+          <Separator />
+          <div className="flex gap-4 min-h-0" style={{ height: "calc(100vh - 200px)" }}>
+            {/* Left: Tables & Actions lists */}
+            <div className="w-48 shrink-0 flex flex-col gap-3 overflow-y-auto">
+              {abi.tables.length > 0 && (
+                <div className="space-y-1">
+                  <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-1 sticky top-0 bg-muted/30 py-1">
+                    <Database className="h-3 w-3" />
+                    Tables ({abi.tables.length})
+                  </h4>
+                  <div className="space-y-0.5">
+                    {abi.tables.map((t) => (
+                      <button
+                        key={t.name}
+                        onClick={() => handleInlineTableClick(t.name)}
+                        className={cn(
+                          "w-full text-left text-[11px] font-mono px-2 py-1 rounded transition-colors",
+                          selectedTable === t.name
+                            ? "bg-primary text-primary-foreground"
+                            : "hover:bg-accent hover:text-accent-foreground"
+                        )}
+                      >
+                        {t.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {abi.actions.length > 0 && (
+                <div className="space-y-1">
+                  <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-1 sticky top-0 bg-muted/30 py-1">
+                    <Zap className="h-3 w-3" />
+                    Actions ({abi.actions.length})
+                  </h4>
+                  <div className="space-y-0.5">
+                    {abi.actions.map((a) => (
+                      <button
+                        key={a.name}
+                        onClick={() => handleInlineActionClick(a.name)}
+                        className={cn(
+                          "w-full text-left text-[11px] font-mono px-2 py-1 rounded transition-colors",
+                          selectedAction === a.name
+                            ? "bg-primary text-primary-foreground"
+                            : "hover:bg-accent hover:text-accent-foreground"
+                        )}
+                      >
+                        {a.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right: Inline content area */}
+            <div className="flex-1 overflow-y-auto border-l pl-4">
+              {inlineLoading && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading...
+                </div>
+              )}
+              {!inlineLoading && selectedTable && inlineTableData && (
+                <TableDetail data={inlineTableData} key={selectedTable + '-' + data.account_name} />
+              )}
+              {!inlineLoading && selectedAction && inlineActionData && (
+                <ActionDetail data={inlineActionData} />
+              )}
+              {!inlineLoading && !selectedTable && !selectedAction && (
+                <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+                  Select a table or action to view
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Expanded: no contract state */}
+      {abiChecked && !abi && expanded && (
+        <div className="text-sm text-muted-foreground text-center py-8">
+          No contract deployed on this account.
+        </div>
       )}
     </div>
   )
