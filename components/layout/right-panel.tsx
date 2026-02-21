@@ -26,8 +26,12 @@ export function RightPanel() {
   const open = !!type && !!data
 
   // Generate a key that changes when different data is selected, forcing a full remount
+  // When expanded with parentAccount on table/action, use stable key based on account name
+  const showExpandedAccount = expanded && parentAccount && (type === "table" || type === "action")
   const detailKey = type && data
-    ? `${type}-${data.account_name || ""}${data.code || ""}${data.table || ""}${data.action_name || ""}${data.id || ""}${data.block_num || ""}`
+    ? showExpandedAccount
+      ? `account-expanded-${parentAccount.account_name || ""}`
+      : `${type}-${expanded}-${data.account_name || ""}${data.code || ""}${data.table || ""}${data.action_name || ""}${data.id || ""}${data.block_num || ""}`
     : "none"
 
   const renderDetail = () => {
@@ -39,8 +43,14 @@ export function RightPanel() {
       case "transaction":
         return <TransactionDetail data={data} />
       case "table":
+        if (expanded && parentAccount) {
+          return <AccountDetail data={parentAccount} expanded={expanded} initialTable={data.table} initialTableData={data} />
+        }
         return <TableDetail data={data} />
       case "action":
+        if (expanded && parentAccount) {
+          return <AccountDetail data={parentAccount} expanded={expanded} initialAction={data.action_name} initialActionData={data} />
+        }
         return <ActionDetail data={data} />
       default:
         return <pre className="text-xs overflow-auto">{JSON.stringify(data, null, 2)}</pre>
@@ -59,13 +69,15 @@ export function RightPanel() {
         <div className="p-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-1">
-              {parentAccount && (type === "table" || type === "action") && (
+              {parentAccount && (type === "table" || type === "action") && !expanded && (
                 <Button variant="ghost" size="icon" onClick={backToAccount} className="h-7 w-7">
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
               )}
               <h3 className="text-sm font-medium">
-                {type ? type.charAt(0).toUpperCase() + type.slice(1) + " Details" : "Details"}
+                {expanded && parentAccount && (type === "table" || type === "action")
+                  ? "Account Details"
+                  : type ? type.charAt(0).toUpperCase() + type.slice(1) + " Details" : "Details"}
               </h3>
             </div>
             <div className="flex items-center gap-1">

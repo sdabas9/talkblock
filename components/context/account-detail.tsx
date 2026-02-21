@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { User, HardDrive, Cpu, Wifi, Key, Shield, Copy, Check, Database, Zap, Loader2, FileCode, Link2, Search } from "lucide-react"
@@ -16,6 +16,10 @@ import { cn } from "@/lib/utils"
 interface AccountDetailProps {
   data: Record<string, any>
   expanded?: boolean
+  initialTable?: string
+  initialTableData?: any
+  initialAction?: string
+  initialActionData?: any
 }
 
 function ResourceDetail({ label, used, max, icon: Icon }: { label: string; used: number; max: number; icon: React.ElementType }) {
@@ -60,7 +64,7 @@ interface AbiAction { name: string; type: string; ricardian_contract?: string }
 interface AbiStruct { name: string; base: string; fields: { name: string; type: string }[] }
 interface AbiData { tables: AbiTable[]; actions: AbiAction[]; structs: AbiStruct[] }
 
-export function AccountDetail({ data, expanded }: AccountDetailProps) {
+export function AccountDetail({ data, expanded, initialTable, initialTableData, initialAction, initialActionData }: AccountDetailProps) {
   const [copied, setCopied] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
   const { endpoint, chainName } = useChain()
@@ -74,10 +78,10 @@ export function AccountDetail({ data, expanded }: AccountDetailProps) {
   const [searchLoading, setSearchLoading] = useState(false)
 
   // Expanded mode: inline table/action selection
-  const [selectedTable, setSelectedTable] = useState<string | null>(null)
-  const [selectedAction, setSelectedAction] = useState<string | null>(null)
-  const [inlineTableData, setInlineTableData] = useState<any>(null)
-  const [inlineActionData, setInlineActionData] = useState<any>(null)
+  const [selectedTable, setSelectedTable] = useState<string | null>(initialTable ?? null)
+  const [selectedAction, setSelectedAction] = useState<string | null>(initialAction ?? null)
+  const [inlineTableData, setInlineTableData] = useState<any>(initialTableData ?? null)
+  const [inlineActionData, setInlineActionData] = useState<any>(initialActionData ?? null)
   const [inlineLoading, setInlineLoading] = useState(false)
 
   useEffect(() => {
@@ -96,11 +100,15 @@ export function AccountDetail({ data, expanded }: AccountDetailProps) {
       .finally(() => { setAbiLoading(false); setAbiChecked(true) })
   }, [endpoint, data.account_name])
 
+  const prevAccountRef = useRef(data.account_name)
   useEffect(() => {
-    setSelectedTable(null)
-    setSelectedAction(null)
-    setInlineTableData(null)
-    setInlineActionData(null)
+    if (prevAccountRef.current !== data.account_name) {
+      prevAccountRef.current = data.account_name
+      setSelectedTable(null)
+      setSelectedAction(null)
+      setInlineTableData(null)
+      setInlineActionData(null)
+    }
   }, [data.account_name])
 
   const handleTableClick = async (tableName: string) => {
@@ -178,6 +186,8 @@ export function AccountDetail({ data, expanded }: AccountDetailProps) {
       if (res.ok) {
         const tableData = await res.json()
         setInlineTableData(tableData)
+        // Sync to context so collapsing shows the correct table
+        setContext("table", tableData)
       }
     } catch {}
     finally { setInlineLoading(false) }
@@ -191,11 +201,14 @@ export function AccountDetail({ data, expanded }: AccountDetailProps) {
     const action = abi.actions.find((a) => a.name === actionName)
     if (!action) return
     const struct = abi.structs.find((s) => s.name === action.type)
-    setInlineActionData({
+    const actionData = {
       account_name: data.account_name,
       action_name: actionName,
       fields: struct?.fields || [],
-    })
+    }
+    setInlineActionData(actionData)
+    // Sync to context so collapsing shows the correct action
+    setContext("action", actionData)
   }
 
   const ram = data.ram || { used: 0, quota: 0 }
