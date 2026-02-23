@@ -33,38 +33,13 @@ CREATE TABLE bookmarks (
   created_at timestamptz DEFAULT now()
 );
 
--- Conversations: chat sessions
-CREATE TABLE conversations (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
-  title text,
-  chain_name text,
-  chain_endpoint text,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
-
--- Messages: individual chat messages
-CREATE TABLE messages (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  conversation_id uuid REFERENCES conversations(id) ON DELETE CASCADE NOT NULL,
-  role text NOT NULL,
-  parts jsonb NOT NULL,
-  created_at timestamptz DEFAULT now()
-);
-
 -- Indexes
 CREATE INDEX idx_bookmarks_user ON bookmarks(user_id);
-CREATE INDEX idx_conversations_user ON conversations(user_id);
-CREATE INDEX idx_conversations_updated ON conversations(user_id, updated_at DESC);
-CREATE INDEX idx_messages_conversation ON messages(conversation_id, created_at);
 
 -- Enable RLS on all tables
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bookmarks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
 CREATE POLICY "users read own profile"
@@ -86,15 +61,3 @@ CREATE POLICY "users manage own settings"
 CREATE POLICY "users manage own bookmarks"
   ON bookmarks FOR ALL
   USING (user_id = auth.uid());
-
-CREATE POLICY "users manage own conversations"
-  ON conversations FOR ALL
-  USING (user_id = auth.uid());
-
-CREATE POLICY "users manage own messages"
-  ON messages FOR ALL
-  USING (
-    conversation_id IN (
-      SELECT id FROM conversations WHERE user_id = auth.uid()
-    )
-  );

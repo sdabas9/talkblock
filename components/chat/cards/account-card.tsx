@@ -14,6 +14,8 @@ interface AccountCardProps {
     net: { used: number; available: number; max: number }
     cpu_staked: string
     net_staked: string
+    rex?: { rex_balance: string; vote_stake: string; matured_rex: number } | null
+    rex_fund?: string | null
   }
 }
 
@@ -58,6 +60,13 @@ export function AccountCard({ data }: AccountCardProps) {
           <span>CPU Staked: {data.cpu_staked}</span>
           <span>NET Staked: {data.net_staked}</span>
         </div>
+        {data.rex && (
+          <div className="flex gap-4 text-xs text-muted-foreground">
+            <span>REX: {data.rex.rex_balance}</span>
+            <span>Vote Stake: {data.rex.vote_stake}</span>
+            {data.rex_fund && <span>REX Fund: {data.rex_fund}</span>}
+          </div>
+        )}
       </CardContent>
     </Card>
   )

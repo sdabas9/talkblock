@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
-import { Link2, Bookmark, Trash2, User, Box, FileText, Database, Coins, Shield, Users, FileSignature, ChevronDown, Clock } from "lucide-react"
+import { Link2, Bookmark, Trash2, User, Box, FileText, Database, Coins, Shield, Users, FileSignature, ChevronDown, Clock, MessageSquare, LayoutDashboard } from "lucide-react"
 import { useDetailContext } from "@/lib/stores/context-store"
 import { fetchAccountData } from "@/lib/antelope/lookup"
 
@@ -24,7 +24,7 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
 }
 
 export function LeftPanel() {
-  const { leftOpen, view } = usePanels()
+  const { leftOpen, view, setView } = usePanels()
   const { chainInfo, chainName, endpoint, hyperionEndpoint, presets } = useChain()
   const { bookmarks, removeBookmark } = useHistory()
   const { recentAccounts, clearRecents, setContext } = useDetailContext()
@@ -149,6 +149,22 @@ export function LeftPanel() {
             <p className="text-xs text-muted-foreground">Not connected</p>
           )}
         </div>
+
+        <Separator />
+
+        {/* View Toggle — show only the other view */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full h-7 text-xs justify-start gap-1.5"
+          onClick={() => setView(view === "chat" ? "dashboard" : "chat")}
+        >
+          {view === "chat" ? (
+            <><LayoutDashboard className="h-3.5 w-3.5" /> Dashboard</>
+          ) : (
+            <><MessageSquare className="h-3.5 w-3.5" /> Chat</>
+          )}
+        </Button>
 
         {view === "chat" && (
         <>

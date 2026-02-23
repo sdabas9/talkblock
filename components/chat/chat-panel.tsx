@@ -10,7 +10,6 @@ import { useLLM } from "@/lib/stores/llm-store"
 import { useChain } from "@/lib/stores/chain-store"
 import { useWallet } from "@/lib/stores/wallet-store"
 import { useAuth } from "@/lib/stores/auth-store"
-import { useConversations } from "@/lib/stores/conversation-store"
 import { useCredits } from "@/lib/stores/credits-store"
 import { LLMSettings } from "@/components/settings/llm-settings"
 import { PurchaseCreditsDialog } from "@/components/billing/purchase-credits-dialog"
@@ -27,16 +26,8 @@ export function ChatPanel() {
   const { endpoint, hyperionEndpoint, chainName, chainInfo } = useChain()
   const { accountName } = useWallet()
   const { user } = useAuth()
-  const {
-    activeConversationId,
-    createConversation,
-    saveMessage,
-    loadMessages,
-  } = useConversations()
   const credits = useCredits()
   const scrollRef = useRef<HTMLDivElement>(null)
-  const activeConvRef = useRef(activeConversationId)
-  activeConvRef.current = activeConversationId
   const [outOfCredits, setOutOfCredits] = useState(false)
 
   const endpointRef = useRef(endpoint)
@@ -116,56 +107,6 @@ export function ChatPanel() {
     }
   }, [outOfCredits, credits.balanceTokens, credits.freeRemaining])
 
-  // Load messages when active conversation changes
-  useEffect(() => {
-    if (justCreatedRef.current) {
-      justCreatedRef.current = false
-      return
-    }
-    if (activeConversationId) {
-      loadMessages(activeConversationId).then((msgs) => {
-        const chatMessages = msgs.map((m: { role: string; parts: unknown[] }, i: number) => ({
-          id: `loaded-${i}`,
-          role: m.role as "system" | "user" | "assistant",
-          parts: m.parts,
-        })) as UIMessage[]
-        setMessages(chatMessages)
-      })
-    } else {
-      setMessages([])
-    }
-  }, [activeConversationId]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Save new messages to DB — user messages saved immediately, assistant messages saved when streaming completes
-  const prevMsgCountRef = useRef(0)
-  const savedAssistantIdRef = useRef<Set<string>>(new Set())
-  useEffect(() => {
-    if (!activeConvRef.current) return
-
-    // When streaming just finished, save the final assistant message
-    if (prevStatusRef.current === "streaming" && status === "ready") {
-      const lastMsg = messages[messages.length - 1]
-      if (lastMsg?.role === "assistant" && !savedAssistantIdRef.current.has(lastMsg.id)) {
-        savedAssistantIdRef.current.add(lastMsg.id)
-        saveMessage(activeConvRef.current, lastMsg.role, lastMsg.parts)
-      }
-    }
-
-    if (messages.length <= prevMsgCountRef.current) {
-      prevMsgCountRef.current = messages.length
-      return
-    }
-
-    const newMessages = messages.slice(prevMsgCountRef.current)
-    prevMsgCountRef.current = messages.length
-    for (const msg of newMessages) {
-      // Skip assistant messages while streaming — they'll be saved when streaming ends
-      if (msg.role === "assistant" && status === "streaming") continue
-      if (msg.role === "assistant" && savedAssistantIdRef.current.has(msg.id)) continue
-      if (msg.role === "assistant") savedAssistantIdRef.current.add(msg.id)
-      saveMessage(activeConvRef.current, msg.role, msg.parts)
-    }
-  }, [messages, status, saveMessage])
 
   const handleTxError = useCallback((error: string, actions: Array<{ account: string; name: string; data: Record<string, unknown> }>) => {
     sendMessage({
@@ -173,19 +114,10 @@ export function ChatPanel() {
     })
   }, [sendMessage])
 
-  // Track when we just created a conversation so the load effect skips it
-  const justCreatedRef = useRef(false)
-
-  // Auto-create conversation on first message send
   const handleSend = useCallback(async (text: string) => {
     setOutOfCredits(false)
-    if (!activeConvRef.current) {
-      justCreatedRef.current = true
-      const convId = await createConversation(chainName || undefined, endpoint || undefined)
-      activeConvRef.current = convId
-    }
     sendMessage({ text })
-  }, [sendMessage, createConversation, chainName, endpoint])
+  }, [sendMessage])
 
   // Clear chat on chain or account change
   const prevChainRef = useRef(endpoint)
@@ -198,7 +130,6 @@ export function ChatPanel() {
 
     if (chainChanged || accountChanged) {
       setMessages([])
-      activeConvRef.current = null
     }
   }, [endpoint, accountName]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -343,6 +274,17 @@ export function ChatPanel() {
                   .filter((p) => isToolUIPart(p) && (getToolName(p) === "get_abi" || getToolName(p) === "get_abi_snapshot") && p.state === "output-available")
                   .map((p) => (p as { output: Record<string, unknown> }).output)
               )
+              // Find the last build_transaction result so we can hide earlier duplicates
+              let lastTxMsgId: string | null = null
+              let lastTxPartIdx = -1
+              messages.forEach((m) => {
+                m.parts.forEach((p, pi) => {
+                  if (isToolUIPart(p) && getToolName(p) === "build_transaction" && p.state === "output-available") {
+                    lastTxMsgId = m.id
+                    lastTxPartIdx = pi
+                  }
+                })
+              })
               return messages
               .filter((message) => {
                 // Hide system trigger messages from display
@@ -355,11 +297,9 @@ export function ChatPanel() {
               .map((message, idx) => (
               <ChatMessage key={`${message.id}-${idx}`} role={message.role as "user" | "assistant"}>
                 {message.parts.map((part, i) => {
-                  // Deduplicate build_transaction: if LLM called it multiple times in one message, only show the last one
+                  // Deduplicate build_transaction: only show the last one across the entire conversation
                   if (isToolUIPart(part) && getToolName(part) === "build_transaction" && part.state === "output-available") {
-                    const lastTxIdx = message.parts.reduce((last, p, idx) =>
-                      isToolUIPart(p) && getToolName(p) === "build_transaction" && p.state === "output-available" ? idx : last, -1)
-                    if (i !== lastTxIdx) return null
+                    if (message.id !== lastTxMsgId || i !== lastTxPartIdx) return null
                   }
                   if (part.type === "text") {
                     if (message.role === "assistant") {
@@ -390,6 +330,11 @@ export function ChatPanel() {
                         />
                       )
                     }
+                    // Hide "Calling..." if this tool already has a completed result in the same message
+                    const hasResult = message.parts.some(
+                      (p) => isToolUIPart(p) && getToolName(p) === toolName && p.state === "output-available"
+                    )
+                    if (hasResult) return null
                     return (
                       <div key={i} className="text-xs text-muted-foreground animate-pulse my-1">
                         Calling {toolName}...

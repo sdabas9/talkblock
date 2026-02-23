@@ -27,7 +27,13 @@ export function createChainTools(endpoint: string | null, hyperionEndpoint: stri
       }),
       execute: async ({ account_name }) => {
         try {
-          const account = await client.getAccount(account_name)
+          const [account, rexBalRows, rexFundRows] = await Promise.all([
+            client.getAccount(account_name),
+            client.getTableRows({ code: "eosio", table: "rexbal", scope: "eosio", lower_bound: account_name, upper_bound: account_name, limit: 1 }).catch(() => ({ rows: [] })),
+            client.getTableRows({ code: "eosio", table: "rexfund", scope: "eosio", lower_bound: account_name, upper_bound: account_name, limit: 1 }).catch(() => ({ rows: [] })),
+          ])
+          const rexBal = rexBalRows.rows?.[0]?.owner === account_name ? rexBalRows.rows[0] : null
+          const rexFund = rexFundRows.rows?.[0]?.owner === account_name ? rexFundRows.rows[0] : null
           return {
             account_name: account.account_name,
             balance: account.core_liquid_balance || "0",
@@ -36,6 +42,12 @@ export function createChainTools(endpoint: string | null, hyperionEndpoint: stri
             net: account.net_limit,
             cpu_staked: account.total_resources?.cpu_weight || "0",
             net_staked: account.total_resources?.net_weight || "0",
+            rex: rexBal ? {
+              rex_balance: rexBal.rex_balance,
+              vote_stake: rexBal.vote_stake,
+              matured_rex: rexBal.matured_rex,
+            } : null,
+            rex_fund: rexFund?.balance || null,
             permissions: account.permissions.map((p) => ({
               name: p.perm_name,
               parent: p.parent,

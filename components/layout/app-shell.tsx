@@ -5,7 +5,6 @@ import { AuthProvider } from "@/lib/stores/auth-store"
 import { ChainProvider } from "@/lib/stores/chain-store"
 import { LLMProvider } from "@/lib/stores/llm-store"
 import { WalletProvider } from "@/lib/stores/wallet-store"
-import { ConversationProvider } from "@/lib/stores/conversation-store"
 import { ContextProvider, useDetailContext } from "@/lib/stores/context-store"
 import { HistoryProvider } from "@/lib/stores/history-store"
 import { DashboardProvider } from "@/lib/stores/dashboard-store"
@@ -60,7 +59,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <WalletProvider>
         <LLMProvider>
           <CreditsProvider>
-          <ConversationProvider>
           <ContextProvider>
             <HistoryProvider>
             <DashboardProvider>
@@ -70,7 +68,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </DashboardProvider>
             </HistoryProvider>
           </ContextProvider>
-          </ConversationProvider>
           </CreditsProvider>
         </LLMProvider>
       </WalletProvider>
