@@ -2,7 +2,6 @@
 
 import { usePanels } from "@/lib/stores/panel-store"
 import { useAuth } from "@/lib/stores/auth-store"
-import { useConversations } from "@/lib/stores/conversation-store"
 import { useLLM } from "@/lib/stores/llm-store"
 import { useCredits } from "@/lib/stores/credits-store"
 import { ChainSelector } from "@/components/chain/chain-selector"
@@ -13,16 +12,9 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { PanelLeft, MessageSquare, Plus, Trash2, LayoutDashboard, Sun, Moon, SunMoon, Settings, Link2, Bot } from "lucide-react"
+import { PanelLeft, Sun, Moon, SunMoon, Settings, Link2, Bot } from "lucide-react"
 import { useState, useEffect } from "react"
 
 type Theme = "light" | "dusk" | "dim" | "dark"
@@ -72,11 +64,10 @@ function UsageIndicator() {
 
 export function Header() {
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const { toggleLeft, view, setView } = usePanels()
+  const { toggleLeft } = usePanels()
   const theme = useTheme()
   const { user } = useAuth()
   const { llmMode } = useLLM()
-  const { conversations, activeConversationId, setActiveConversation, createConversation, deleteConversation } = useConversations()
 
   return (
     <header className="h-14 border-b flex items-center justify-between px-4 bg-background">
@@ -133,71 +124,9 @@ export function Header() {
         <Button variant="ghost" size="icon" onClick={toggleLeft}>
           <PanelLeft className="h-4 w-4" />
         </Button>
-        <div className="flex items-center border rounded-md overflow-hidden ml-2">
-          <Button
-            variant={view === "chat" ? "secondary" : "ghost"}
-            size="sm"
-            className="rounded-none h-7 px-2.5 text-xs"
-            onClick={() => setView("chat")}
-          >
-            <MessageSquare className="h-3.5 w-3.5 mr-1" />
-            Chat
-          </Button>
-          <Button
-            variant={view === "dashboard" ? "secondary" : "ghost"}
-            size="sm"
-            className="rounded-none h-7 px-2.5 text-xs"
-            onClick={() => setView("dashboard")}
-          >
-            <LayoutDashboard className="h-3.5 w-3.5 mr-1" />
-            Dashboard
-          </Button>
-        </div>
       </div>
       <div className="flex items-center gap-2">
         <UsageIndicator />
-        {user && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <MessageSquare className="h-4 w-4 mr-2" />
-                Chats
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuItem onClick={() => setActiveConversation(null)}>
-                <Plus className="h-4 w-4 mr-2" />
-                New Chat
-              </DropdownMenuItem>
-              {conversations.length > 0 && <DropdownMenuSeparator />}
-              {conversations.slice(0, 20).map((conv) => (
-                <DropdownMenuItem
-                  key={conv.id}
-                  className="flex items-center justify-between"
-                  onClick={() => setActiveConversation(conv.id)}
-                >
-                  <span className="truncate text-xs flex-1">
-                    {conv.title}
-                    {conv.chain_name && (
-                      <span className="text-muted-foreground ml-1">({conv.chain_name})</span>
-                    )}
-                  </span>
-                  {activeConversationId === conv.id && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0 ml-2" />
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5 ml-1 shrink-0"
-                    onClick={(e) => { e.stopPropagation(); deleteConversation(conv.id) }}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
         <WalletButton />
         <Button variant="ghost" size="sm" onClick={theme.cycle} title={`Theme: ${theme.label}`} className="gap-1.5 px-2">
           {theme.theme === "light" ? <Sun className="h-4 w-4" /> : theme.theme === "dark" ? <Moon className="h-4 w-4" /> : <SunMoon className="h-4 w-4" />}
