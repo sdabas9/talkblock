@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,6 +10,7 @@ import { Zap, Send, Loader2, Check, X, Link2, Terminal, Copy } from "lucide-reac
 import { useWallet } from "@/lib/stores/wallet-store"
 import { useChain } from "@/lib/stores/chain-store"
 import { useDetailContext } from "@/lib/stores/context-store"
+import { fetchAccountData } from "@/lib/antelope/lookup"
 
 interface ActionField {
   name: string
@@ -28,7 +29,14 @@ interface ActionDetailProps {
 export function ActionDetail({ data }: ActionDetailProps) {
   const { session, transact } = useWallet()
   const { chainName, endpoint, hyperionEndpoint } = useChain()
-  const { setContext } = useDetailContext()
+  const { setContext, backToAccount, parentAccount } = useDetailContext()
+
+  const goToAccount = useCallback(async () => {
+    if (parentAccount) { backToAccount(); return }
+    if (!data.account_name || !endpoint) return
+    const accountData = await fetchAccountData(data.account_name, endpoint).catch(() => null)
+    if (accountData) setContext("account", accountData)
+  }, [parentAccount, backToAccount, data.account_name, endpoint, setContext])
 
   const [values, setValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {}
@@ -37,6 +45,13 @@ export function ActionDetail({ data }: ActionDetailProps) {
     }
     return initial
   })
+  // Sync field values back to context so expand/collapse preserves inputs
+  const mountedRef = useRef(false)
+  useEffect(() => {
+    if (!mountedRef.current) { mountedRef.current = true; return }
+    setContext("action", { ...data, initialValues: values })
+  }, [values]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const [signing, setSigning] = useState(false)
   const [txResult, setTxResult] = useState<string | null>(null)
   const [txError, setTxError] = useState<string | null>(null)
@@ -112,7 +127,10 @@ export function ActionDetail({ data }: ActionDetailProps) {
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Zap className="h-5 w-5" />
-        <h2 className="text-lg font-semibold truncate flex-1">{data.action_name}</h2>
+        <h2 className="text-lg font-semibold truncate flex-1">
+          <button onClick={goToAccount} className="hover:underline cursor-pointer">{data.account_name}</button>
+          {" / "}{data.action_name}
+        </h2>
         <Button
           variant="ghost"
           size="icon"
