@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import { PanelProvider } from "@/lib/stores/panel-store"
 import { AuthProvider } from "@/lib/stores/auth-store"
 import { ChainProvider } from "@/lib/stores/chain-store"
@@ -20,16 +21,26 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   const { expanded, type, data } = useDetailContext()
   const panelOpen = !!type && !!data
 
+  // Remove shared-link CSS class once React takes over (panel is open and expanded),
+  // so React's own hideSidebar logic drives the layout from here on
+  useEffect(() => {
+    const el = document.documentElement
+    if (!el.classList.contains("shared-link")) return
+    if (panelOpen) el.classList.remove("shared-link")
+  }, [panelOpen, expanded])
+
+  const hideSidebar = expanded && panelOpen
+
   return (
     <div className="h-screen flex flex-col">
       <Header />
       <div className="flex-1 flex overflow-hidden relative">
-        <div className={expanded && panelOpen ? "hidden" : "contents"}>
+        <div className={hideSidebar ? "hidden" : "contents"} data-left-panel>
           <LeftPanel />
-          <main className="flex-1 flex flex-col overflow-hidden">
-            {children}
-          </main>
         </div>
+        <main className={hideSidebar ? "hidden" : "flex-1 flex flex-col overflow-hidden"} data-main-content>
+          {children}
+        </main>
         <RightPanel />
       </div>
       <footer className="border-t px-4 py-1.5 flex items-center justify-between text-[11px] text-muted-foreground/60 shrink-0">

@@ -1,19 +1,18 @@
 "use client"
 
 import { useEffect, useRef, Suspense } from "react"
-import { useSearchParams, useRouter } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { ChatPanel } from "@/components/chat/chat-panel"
 import { DashboardView } from "@/components/dashboard/dashboard-view"
 import { usePanels } from "@/lib/stores/panel-store"
 import { useChain } from "@/lib/stores/chain-store"
 import { useDetailContext } from "@/lib/stores/context-store"
-import { fetchAccountData, fetchBlockData, fetchTxData } from "@/lib/antelope/lookup"
+import { fetchAccountData, fetchBlockData, fetchTxData, fetchTableData, fetchActionData } from "@/lib/antelope/lookup"
 
-function DeepLinkHandler() {
+function HomeContent() {
   const searchParams = useSearchParams()
-  const router = useRouter()
   const { presets, connect, chainName, endpoint, hyperionEndpoint, connecting } = useChain()
-  const { setView } = usePanels()
+  const { view, setView } = usePanels()
   const { setContext } = useDetailContext()
   const handledRef = useRef(false)
 
@@ -21,8 +20,15 @@ function DeepLinkHandler() {
   const accountParam = searchParams.get("account")
   const blockParam = searchParams.get("block")
   const chainParam = searchParams.get("chain")
+  const tableParam = searchParams.get("table")
+  const codeParam = searchParams.get("code")
+  const scopeParam = searchParams.get("scope")
+  const lowerBoundParam = searchParams.get("lower_bound")
+  const upperBoundParam = searchParams.get("upper_bound")
+  const reverseParam = searchParams.get("reverse")
+  const actionParam = searchParams.get("action")
 
-  const hasParam = txParam || accountParam || blockParam
+  const hasParam = txParam || accountParam || blockParam || (tableParam && codeParam) || (actionParam && codeParam)
 
   useEffect(() => {
     if (!hasParam || handledRef.current) return
@@ -40,43 +46,79 @@ function DeepLinkHandler() {
     if (connecting || !endpoint) return
 
     handledRef.current = true
-    // Set cookie so middleware won't redirect on subsequent navigations
     document.cookie = "chain_selected=1; path=/; max-age=31536000; SameSite=Lax"
     setView("chat")
-    router.replace("/")
 
-    // Fetch and open detail panel directly (no LLM needed)
+    // Open the panel immediately with a loading placeholder BEFORE clearing URL
+    const linkType = accountParam ? "account"
+      : blockParam ? "block"
+      : txParam ? "transaction"
+      : (tableParam && codeParam) ? "table"
+      : (actionParam && codeParam) ? "action"
+      : null
+    if (linkType) {
+      setContext(linkType, { _loading: true }, { expand: true })
+    }
+
+    // Clear URL params without triggering Next.js router re-render
+    window.history.replaceState({}, "", "/")
+
+    // Fetch real data and replace the placeholder
     if (accountParam) {
       fetchAccountData(accountParam, endpoint)
-        .then((data) => setContext("account", data))
+        .then((data) => setContext("account", data, { expand: true }))
         .catch(() => {})
     }
     if (blockParam) {
       fetchBlockData(blockParam, endpoint)
-        .then((data) => setContext("block", data))
+        .then((data) => setContext("block", data, { expand: true }))
         .catch(() => {})
     }
     if (txParam) {
       fetchTxData(txParam, endpoint, hyperionEndpoint)
-        .then((data) => { if (data) setContext("transaction", data) })
+        .then((data) => { if (data) setContext("transaction", data, { expand: true }) })
         .catch(() => {})
     }
-  }, [hasParam, txParam, accountParam, blockParam, chainParam, chainName, endpoint, hyperionEndpoint, connecting, presets, connect, setView, setContext, router])
+    if (tableParam && codeParam) {
+      fetchTableData(codeParam, tableParam, endpoint, {
+        scope: scopeParam || undefined,
+        lower_bound: lowerBoundParam || undefined,
+        upper_bound: upperBoundParam || undefined,
+        reverse: reverseParam === "true",
+      })
+        .then((data) => setContext("table", data, { expand: true }))
+        .catch(() => {})
+    }
+    if (actionParam && codeParam && !tableParam) {
+      const initialValues: Record<string, string> = {}
+      searchParams.forEach((value, key) => {
+        if (key.startsWith("field_")) {
+          initialValues[key.slice(6)] = value
+        }
+      })
+      fetchActionData(codeParam, actionParam, endpoint, Object.keys(initialValues).length > 0 ? initialValues : undefined)
+        .then((data) => setContext("action", data, { expand: true }))
+        .catch(() => {})
+    }
+  }, [hasParam, txParam, accountParam, blockParam, chainParam, chainName, endpoint, hyperionEndpoint, connecting, presets, connect, setView, setContext, tableParam, codeParam, scopeParam, lowerBoundParam, upperBoundParam, reverseParam, actionParam, searchParams])
 
-  return null
+  // Hide chat while deep link params are in the URL (before effect clears them)
+  const showChat = view === "chat" && !hasParam
+
+  return (
+    <>
+      <div className={showChat ? "flex flex-col flex-1 overflow-hidden" : "hidden"}>
+        <ChatPanel />
+      </div>
+      {view === "dashboard" && !hasParam && <DashboardView />}
+    </>
+  )
 }
 
 export default function Home() {
-  const { view } = usePanels()
   return (
-    <>
-      <Suspense>
-        <DeepLinkHandler />
-      </Suspense>
-      <div className={view === "chat" ? "flex flex-col flex-1 overflow-hidden" : "hidden"}>
-        <ChatPanel />
-      </div>
-      {view === "dashboard" && <DashboardView />}
-    </>
+    <Suspense>
+      <HomeContent />
+    </Suspense>
   )
 }
