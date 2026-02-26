@@ -176,11 +176,13 @@ export function LeftPanel() {
             <Bookmark className="h-3 w-3" />
             Bookmarks
           </h3>
-          {bookmarks.length === 0 ? (
+          {(() => {
+            const chainBookmarks = bookmarks.filter((b) => b.chain_name === chainName)
+            return chainBookmarks.length === 0 ? (
             <p className="text-xs text-muted-foreground">No bookmarks yet</p>
           ) : (
             <div className="space-y-0">
-              {bookmarks.map((bookmark) => {
+              {chainBookmarks.map((bookmark) => {
                 const Icon = TOOL_ICONS[bookmark.tool_name] || FileText
                 return (
                   <div key={bookmark.id} className="flex items-center gap-1.5 group">
@@ -203,11 +205,14 @@ export function LeftPanel() {
                 )
               })}
             </div>
-          )}
+          )
+          })()}
         </div>
 
         {/* Recent Accounts */}
-        {recentAccounts.length > 0 && (
+        {(() => {
+          const chainRecents = recentAccounts.filter((r) => r.chain_name === chainName)
+          return chainRecents.length > 0 && (
         <>
         <Separator />
         <div>
@@ -222,7 +227,7 @@ export function LeftPanel() {
             </button>
           </h3>
           <div className="space-y-1">
-            {recentAccounts.map((r) => (
+            {chainRecents.map((r) => (
               <button
                 key={`${r.chain_name}-${r.account_name}`}
                 className="flex items-center gap-1.5 text-xs hover:text-primary transition-colors text-left truncate w-full cursor-pointer"
@@ -230,17 +235,13 @@ export function LeftPanel() {
               >
                 <User className="h-3 w-3 shrink-0 text-muted-foreground" />
                 <span className="truncate">{r.account_name}</span>
-                {r.chain_name && r.chain_name !== chainName && (
-                  <Badge variant="secondary" className="text-[9px] px-1 py-0 shrink-0">
-                    {r.chain_name.split(" ")[0]}
-                  </Badge>
-                )}
               </button>
             ))}
           </div>
         </div>
         </>
-        )}
+        )
+        })()}
         </>
         )}
       </div>
