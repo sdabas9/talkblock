@@ -48,11 +48,12 @@ export function RightPanel() {
   }, [orphanAccountName, endpoint, setContext])
 
   // Generate a key that changes when different data is selected, forcing a full remount
-  // When expanded with parentAccount on table/action, use stable key based on account name
+  // In expanded mode, keep key stable across account→table/action transitions to avoid remount flash
   const showExpandedAccount = expanded && parentAccount && (type === "table" || type === "action")
+  const isExpandedAccount = expanded && type === "account"
   const detailKey = type && data
-    ? showExpandedAccount
-      ? `account-expanded-${parentAccount.account_name || ""}`
+    ? (showExpandedAccount || isExpandedAccount)
+      ? `account-expanded-${parentAccount?.account_name || data.account_name || ""}`
       : `${type}-${expanded}-${data.account_name || ""}${data.code || ""}${data.table || ""}${data.action_name || ""}${data.id || ""}${data.block_num || ""}`
     : "none"
 
@@ -98,15 +99,9 @@ export function RightPanel() {
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-1">
-                {parentAccount && (type === "table" || type === "action") && !expanded ? (
-                  <Button variant="ghost" size="icon" onClick={backToAccount} className="h-7 w-7">
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                ) : orphanAccountName && !expanded ? (
-                  <Button variant="ghost" size="icon" onClick={goToAccount} className="h-7 w-7" disabled={navLoading} title={`Go to ${orphanAccountName}`}>
-                    {navLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowLeft className="h-4 w-4" />}
-                  </Button>
-                ) : null}
+                <Button variant="ghost" size="icon" onClick={toggleExpanded} className="h-7 w-7" title={expanded ? "Collapse panel" : "Expand panel"}>
+                  {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                </Button>
                 <h3 className="text-sm font-medium">
                   {expanded && parentAccount && (type === "table" || type === "action")
                     ? "Account Details"
@@ -114,9 +109,6 @@ export function RightPanel() {
                 </h3>
               </div>
               <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" onClick={toggleExpanded} title={expanded ? "Collapse panel" : "Expand panel"}>
-                  {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-                </Button>
                 <Button variant="ghost" size="icon" onClick={clearContext}>
                   <X className="h-4 w-4" />
                 </Button>

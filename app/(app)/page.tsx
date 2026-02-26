@@ -80,14 +80,19 @@ function HomeContent() {
         .catch(() => {})
     }
     if (tableParam && codeParam) {
-      fetchTableData(codeParam, tableParam, endpoint, {
-        scope: scopeParam || undefined,
-        lower_bound: lowerBoundParam || undefined,
-        upper_bound: upperBoundParam || undefined,
-        reverse: reverseParam === "true",
-      })
-        .then((data) => setContext("table", data, { expand: true }))
-        .catch(() => {})
+      Promise.all([
+        fetchAccountData(codeParam, endpoint),
+        fetchTableData(codeParam, tableParam, endpoint, {
+          scope: scopeParam || undefined,
+          lower_bound: lowerBoundParam || undefined,
+          upper_bound: upperBoundParam || undefined,
+          reverse: reverseParam === "true",
+        }),
+      ]).then(([accountData, tableData]) => {
+        // Set account first so parentAccount gets saved on account→table transition
+        setContext("account", accountData, { expand: true })
+        setContext("table", tableData, { expand: true })
+      }).catch(() => {})
     }
     if (actionParam && codeParam && !tableParam) {
       const initialValues: Record<string, string> = {}
@@ -96,9 +101,13 @@ function HomeContent() {
           initialValues[key.slice(6)] = value
         }
       })
-      fetchActionData(codeParam, actionParam, endpoint, Object.keys(initialValues).length > 0 ? initialValues : undefined)
-        .then((data) => setContext("action", data, { expand: true }))
-        .catch(() => {})
+      Promise.all([
+        fetchAccountData(codeParam, endpoint),
+        fetchActionData(codeParam, actionParam, endpoint, Object.keys(initialValues).length > 0 ? initialValues : undefined),
+      ]).then(([accountData, actionData]) => {
+        setContext("account", accountData, { expand: true })
+        setContext("action", actionData, { expand: true })
+      }).catch(() => {})
     }
   }, [hasParam, txParam, accountParam, blockParam, chainParam, chainName, endpoint, hyperionEndpoint, connecting, presets, connect, setView, setContext, tableParam, codeParam, scopeParam, lowerBoundParam, upperBoundParam, reverseParam, actionParam, searchParams])
 

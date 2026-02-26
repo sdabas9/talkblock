@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useCallback, useEffect, useRef } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,8 @@ import {
   Link2, Check, ChevronLeft,
 } from "lucide-react"
 import { useChain } from "@/lib/stores/chain-store"
+import { useDetailContext } from "@/lib/stores/context-store"
+import { fetchAccountData } from "@/lib/antelope/lookup"
 
 const PAGE_SIZE = 20
 
@@ -21,6 +23,7 @@ interface TableDetailProps {
     scope?: string
     lower_bound?: string
     upper_bound?: string
+    reverse?: boolean
     rows: Array<Record<string, unknown>>
     more?: boolean
   }
@@ -30,6 +33,14 @@ type ViewMode = "table" | "cards"
 
 export function TableDetail({ data: initialData }: TableDetailProps) {
   const { endpoint, chainName } = useChain()
+  const { backToAccount, parentAccount, setContext } = useDetailContext()
+
+  const goToAccount = useCallback(async () => {
+    if (parentAccount) { backToAccount(); return }
+    if (!initialData.code || !endpoint) return
+    const accountData = await fetchAccountData(initialData.code, endpoint).catch(() => null)
+    if (accountData) setContext("account", accountData)
+  }, [parentAccount, backToAccount, initialData.code, endpoint, setContext])
   const [rows, setRows] = useState(initialData.rows || [])
   const [more, setMore] = useState(initialData.more ?? false)
   const [loading, setLoading] = useState(false)
@@ -38,7 +49,22 @@ export function TableDetail({ data: initialData }: TableDetailProps) {
   const [scope, setScope] = useState(initialData.scope || initialData.code || "")
   const [lowerBound, setLowerBound] = useState(initialData.lower_bound || "")
   const [upperBound, setUpperBound] = useState(initialData.upper_bound || "")
-  const [reverse, setReverse] = useState(false)
+  const [reverse, setReverse] = useState(initialData.reverse ?? false)
+
+  // Sync query state back to context so expand/collapse preserves inputs and results
+  const mountedRef = useRef(false)
+  useEffect(() => {
+    if (!mountedRef.current) { mountedRef.current = true; return }
+    setContext("table", {
+      ...initialData,
+      scope,
+      lower_bound: lowerBound || undefined,
+      upper_bound: upperBound || undefined,
+      reverse,
+      rows,
+      more,
+    })
+  }, [scope, lowerBound, upperBound, reverse, rows]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(0)
@@ -160,7 +186,7 @@ export function TableDetail({ data: initialData }: TableDetailProps) {
         <TableIcon className="h-5 w-5" />
         <h2 className="text-lg font-semibold truncate flex-1">
           {initialData.code && initialData.table
-            ? `${initialData.code} / ${initialData.table}`
+            ? <><button onClick={goToAccount} className="hover:underline cursor-pointer">{initialData.code}</button>{" / "}{initialData.table}</>
             : "Table Data"}
         </h2>
         <Button
@@ -317,9 +343,9 @@ export function TableDetail({ data: initialData }: TableDetailProps) {
 
           {/* TABLE VIEW */}
           {viewMode === "table" && (
-            <div className="overflow-x-auto -mx-4 px-4">
+            <div className="overflow-auto -mx-4 px-4" style={{ maxHeight: "calc(100vh - 320px)" }}>
               <table className="w-full text-xs">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-background">
                   <tr className="border-b">
                     {columns.filter((c) => !isWide || visibleCols.has(c)).map((col) => (
                       <th
