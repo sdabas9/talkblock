@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,8 +8,11 @@ import { Separator } from "@/components/ui/separator"
 import {
   TableIcon, Loader2, Search, ArrowDownUp,
   LayoutList, Table2, Columns3, ChevronDown, ChevronRight,
+  Link2, Check, ChevronLeft,
 } from "lucide-react"
 import { useChain } from "@/lib/stores/chain-store"
+
+const PAGE_SIZE = 20
 
 interface TableDetailProps {
   data: {
@@ -26,7 +29,7 @@ interface TableDetailProps {
 type ViewMode = "table" | "cards"
 
 export function TableDetail({ data: initialData }: TableDetailProps) {
-  const { endpoint } = useChain()
+  const { endpoint, chainName } = useChain()
   const [rows, setRows] = useState(initialData.rows || [])
   const [more, setMore] = useState(initialData.more ?? false)
   const [loading, setLoading] = useState(false)
@@ -36,6 +39,12 @@ export function TableDetail({ data: initialData }: TableDetailProps) {
   const [lowerBound, setLowerBound] = useState(initialData.lower_bound || "")
   const [upperBound, setUpperBound] = useState(initialData.upper_bound || "")
   const [reverse, setReverse] = useState(false)
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(0)
+
+  // Share link
+  const [linkCopied, setLinkCopied] = useState(false)
 
   // View controls
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -52,6 +61,10 @@ export function TableDetail({ data: initialData }: TableDetailProps) {
   const [expandedRow, setExpandedRow] = useState<number | null>(null)
 
   const columns = rows.length > 0 ? Object.keys(rows[0]) : []
+
+  // Paginated rows
+  const totalPages = Math.ceil(rows.length / PAGE_SIZE)
+  const pagedRows = rows.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE)
 
   const fetchTable = async (opts?: { appendMode?: boolean; lb?: string }) => {
     if (!endpoint || !initialData.code || !initialData.table) return
@@ -82,6 +95,7 @@ export function TableDetail({ data: initialData }: TableDetailProps) {
           setRows((prev) => [...prev, ...filtered])
         } else {
           setRows(newRows)
+          setCurrentPage(0)
           // Reset column picker for new data
           if (newRows.length > 0) {
             const newCols = Object.keys(newRows[0])
@@ -123,17 +137,45 @@ export function TableDetail({ data: initialData }: TableDetailProps) {
     return String(val)
   }
 
+  const copyShareLink = () => {
+    const params = new URLSearchParams()
+    if (chainName) params.set("chain", chainName)
+    if (initialData.code) params.set("code", initialData.code)
+    if (initialData.table) params.set("table", initialData.table)
+    if (scope && scope !== initialData.code) params.set("scope", scope)
+    if (lowerBound) params.set("lower_bound", lowerBound)
+    if (upperBound) params.set("upper_bound", upperBound)
+    if (reverse) params.set("reverse", "true")
+    const url = `${window.location.origin}/?${params.toString()}`
+    navigator.clipboard.writeText(url)
+    setLinkCopied(true)
+    setTimeout(() => setLinkCopied(false), 2000)
+  }
+
   const isWide = columns.length > 4
 
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <TableIcon className="h-5 w-5" />
-        <h2 className="text-lg font-semibold truncate">
+        <h2 className="text-lg font-semibold truncate flex-1">
           {initialData.code && initialData.table
             ? `${initialData.code} / ${initialData.table}`
             : "Table Data"}
         </h2>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0"
+          onClick={copyShareLink}
+          title="Copy shareable link"
+        >
+          {linkCopied ? (
+            <Check className="h-3.5 w-3.5 text-green-500" />
+          ) : (
+            <Link2 className="h-3.5 w-3.5" />
+          )}
+        </Button>
       </div>
 
       {/* Query controls */}
@@ -295,44 +337,46 @@ export function TableDetail({ data: initialData }: TableDetailProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row, i) => (
-                    <>
-                      <tr
-                        key={i}
-                        className={`border-b last:border-0 ${isWide ? "cursor-pointer hover:bg-accent/30" : ""}`}
-                        onClick={isWide ? () => setExpandedRow(expandedRow === i ? null : i) : undefined}
-                      >
-                        {columns.filter((c) => !isWide || visibleCols.has(c)).map((col) => (
-                          <td key={col} className="px-2 py-1.5 whitespace-nowrap max-w-[140px] truncate">
-                            {typeof row[col] === "object" && row[col] !== null
-                              ? JSON.stringify(row[col])
-                              : String(row[col] ?? "")}
-                          </td>
-                        ))}
-                        {isWide && visibleCols.size < columns.length && (
-                          <td className="px-2 py-1.5 text-muted-foreground">
-                            {expandedRow === i ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                          </td>
-                        )}
-                      </tr>
-                      {expandedRow === i && (
-                        <tr key={`${i}-exp`} className="border-b">
-                          <td colSpan={columns.filter((c) => !isWide || visibleCols.has(c)).length + (isWide ? 1 : 0)} className="p-0">
-                            <div className="bg-muted/50 px-3 py-2 space-y-1">
-                              {columns.map((col) => (
-                                <div key={col} className="flex gap-2 text-xs">
-                                  <span className="text-muted-foreground font-medium shrink-0 w-24 truncate" title={col}>{col}</span>
-                                  <span className="font-mono break-all whitespace-pre-wrap">
-                                    {formatValue(row[col])}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </td>
+                  {pagedRows.map((row, i) => {
+                    const globalIdx = currentPage * PAGE_SIZE + i
+                    return (
+                      <React.Fragment key={globalIdx}>
+                        <tr
+                          className={`border-b last:border-0 ${isWide ? "cursor-pointer hover:bg-accent/30" : ""}`}
+                          onClick={isWide ? () => setExpandedRow(expandedRow === globalIdx ? null : globalIdx) : undefined}
+                        >
+                          {columns.filter((c) => !isWide || visibleCols.has(c)).map((col) => (
+                            <td key={col} className="px-2 py-1.5 whitespace-nowrap max-w-[140px] truncate">
+                              {typeof row[col] === "object" && row[col] !== null
+                                ? JSON.stringify(row[col])
+                                : String(row[col] ?? "")}
+                            </td>
+                          ))}
+                          {isWide && visibleCols.size < columns.length && (
+                            <td className="px-2 py-1.5 text-muted-foreground">
+                              {expandedRow === globalIdx ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                            </td>
+                          )}
                         </tr>
-                      )}
-                    </>
-                  ))}
+                        {expandedRow === globalIdx && (
+                          <tr key={`${globalIdx}-exp`} className="border-b">
+                            <td colSpan={columns.filter((c) => !isWide || visibleCols.has(c)).length + (isWide ? 1 : 0)} className="p-0">
+                              <div className="bg-muted/50 px-3 py-2 space-y-1">
+                                {columns.map((col) => (
+                                  <div key={col} className="flex gap-2 text-xs">
+                                    <span className="text-muted-foreground font-medium shrink-0 w-24 truncate" title={col}>{col}</span>
+                                    <span className="font-mono break-all whitespace-pre-wrap">
+                                      {formatValue(row[col])}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -341,11 +385,11 @@ export function TableDetail({ data: initialData }: TableDetailProps) {
           {/* CARD VIEW */}
           {viewMode === "cards" && (
             <div className="space-y-2">
-              {rows.map((row, i) => (
-                <div key={i} className="rounded-md border bg-card p-3 space-y-1.5 text-xs">
+              {pagedRows.map((row, i) => (
+                <div key={currentPage * PAGE_SIZE + i} className="rounded-md border bg-card p-3 space-y-1.5 text-xs">
                   {columns[0] && (
                     <div className="font-medium text-sm pb-1 border-b">
-                      {String(row[columns[0]] ?? `Row ${i + 1}`)}
+                      {String(row[columns[0]] ?? `Row ${currentPage * PAGE_SIZE + i + 1}`)}
                     </div>
                   )}
                   {columns.slice(columns[0] ? 1 : 0).map((col) => (
@@ -364,6 +408,35 @@ export function TableDetail({ data: initialData }: TableDetailProps) {
                   ))}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Pagination controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={() => { setCurrentPage((p) => Math.max(0, p - 1)); setExpandedRow(null) }}
+                disabled={currentPage === 0}
+              >
+                <ChevronLeft className="h-3 w-3" />
+                Prev
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Page {currentPage + 1} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={() => { setCurrentPage((p) => Math.min(totalPages - 1, p + 1)); setExpandedRow(null) }}
+                disabled={currentPage >= totalPages - 1}
+              >
+                Next
+                <ChevronRight className="h-3 w-3" />
+              </Button>
             </div>
           )}
 

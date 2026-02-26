@@ -4,6 +4,7 @@ import { usePanels } from "@/lib/stores/panel-store"
 import { useAuth } from "@/lib/stores/auth-store"
 import { useLLM } from "@/lib/stores/llm-store"
 import { useCredits } from "@/lib/stores/credits-store"
+import { useDetailContext } from "@/lib/stores/context-store"
 import { ChainSelector } from "@/components/chain/chain-selector"
 import { LLMSettings } from "@/components/settings/llm-settings"
 import { UsageSummary } from "@/components/billing/usage-summary"
@@ -64,22 +65,28 @@ function UsageIndicator() {
 
 export function Header() {
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const { toggleLeft } = usePanels()
+  const { toggleLeft, setView } = usePanels()
+  const { clearContext } = useDetailContext()
   const theme = useTheme()
   const { user } = useAuth()
   const { llmMode } = useLLM()
 
+  const goHome = () => {
+    clearContext()
+    setView("chat")
+  }
+
   return (
     <header className="h-14 border-b flex items-center justify-between px-4 bg-background">
       <div className="flex items-center gap-2">
-        <h1 className="text-lg font-semibold flex items-center gap-1.5">
+        <button onClick={goHome} className="text-lg font-semibold flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer" title="Go to chat">
           <svg viewBox="0 0 48 48" fill="none" className="h-6 w-6" xmlns="http://www.w3.org/2000/svg">
             <path d="M4 8C4 4.686 6.686 2 10 2H38C41.314 2 44 4.686 44 8V32C44 35.314 41.314 38 38 38H28L20 46V38H10C6.686 38 4 35.314 4 32V8Z" fill="#6366f1"/>
             <path d="M24 10L36 17V31L24 38L12 31V17L24 10Z" stroke="white" strokeWidth="2" strokeLinejoin="round"/>
             <path d="M24 10V24M24 24L36 17M24 24L12 17M24 24V38" stroke="white" strokeWidth="1.5" strokeLinejoin="round" opacity="0.6"/>
           </svg>
           <span>Talk<span className="font-normal">block</span></span>
-        </h1>
+        </button>
         <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
           <DialogTrigger asChild>
             <Button variant="ghost" size="icon">

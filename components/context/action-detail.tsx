@@ -21,6 +21,7 @@ interface ActionDetailProps {
     account_name: string
     action_name: string
     fields: ActionField[]
+    initialValues?: Record<string, string>
   }
 }
 
@@ -32,7 +33,7 @@ export function ActionDetail({ data }: ActionDetailProps) {
   const [values, setValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {}
     for (const f of data.fields) {
-      initial[f.name] = ""
+      initial[f.name] = data.initialValues?.[f.name] || ""
     }
     return initial
   })
@@ -40,8 +41,23 @@ export function ActionDetail({ data }: ActionDetailProps) {
   const [txResult, setTxResult] = useState<string | null>(null)
   const [txError, setTxError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
   const [showCleos, setShowCleos] = useState(false)
   const [cleosCopied, setCleosCopied] = useState(false)
+
+  const copyShareLink = () => {
+    const params = new URLSearchParams()
+    if (chainName) params.set("chain", chainName)
+    params.set("code", data.account_name)
+    params.set("action", data.action_name)
+    for (const f of data.fields) {
+      if (values[f.name]) params.set(`field_${f.name}`, values[f.name])
+    }
+    const url = `${window.location.origin}/?${params.toString()}`
+    navigator.clipboard.writeText(url)
+    setLinkCopied(true)
+    setTimeout(() => setLinkCopied(false), 2000)
+  }
 
   const parseValue = (value: string, type: string): unknown => {
     if (type.startsWith("uint") || type.startsWith("int") || type === "float64" || type === "float32") {
@@ -96,7 +112,20 @@ export function ActionDetail({ data }: ActionDetailProps) {
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Zap className="h-5 w-5" />
-        <h2 className="text-lg font-semibold truncate">{data.action_name}</h2>
+        <h2 className="text-lg font-semibold truncate flex-1">{data.action_name}</h2>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0"
+          onClick={copyShareLink}
+          title="Copy shareable link"
+        >
+          {linkCopied ? (
+            <Check className="h-3.5 w-3.5 text-green-500" />
+          ) : (
+            <Link2 className="h-3.5 w-3.5" />
+          )}
+        </Button>
       </div>
 
       <Badge variant="secondary" className="text-[10px] font-mono">

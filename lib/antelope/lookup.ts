@@ -65,3 +65,58 @@ export async function fetchTxData(
   }
   return res.json()
 }
+
+export async function fetchTableData(
+  code: string,
+  table: string,
+  endpoint: string,
+  opts?: { scope?: string; lower_bound?: string; upper_bound?: string; reverse?: boolean },
+) {
+  const res = await fetch("/api/lookup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      type: "table",
+      code,
+      table,
+      endpoint,
+      scope: opts?.scope || code,
+      ...(opts?.lower_bound ? { lower_bound: opts.lower_bound } : {}),
+      ...(opts?.upper_bound ? { upper_bound: opts.upper_bound } : {}),
+      ...(opts?.reverse ? { reverse: true } : {}),
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Lookup failed" }))
+    throw new Error(err.error || "Lookup failed")
+  }
+  return res.json()
+}
+
+export async function fetchActionData(
+  code: string,
+  actionName: string,
+  endpoint: string,
+  initialValues?: Record<string, string>,
+) {
+  const res = await fetch("/api/lookup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type: "abi", id: code, endpoint }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Lookup failed" }))
+    throw new Error(err.error || "Lookup failed")
+  }
+  const { abi } = await res.json()
+  if (!abi) throw new Error("No ABI found")
+  const action = abi.actions?.find((a: { name: string }) => a.name === actionName)
+  if (!action) throw new Error("Action not found in ABI")
+  const struct = abi.structs?.find((s: { name: string }) => s.name === action.type)
+  return {
+    account_name: code,
+    action_name: actionName,
+    fields: struct?.fields || [],
+    ...(initialValues ? { initialValues } : {}),
+  }
+}

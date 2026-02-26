@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react"
+import { createContext, useContext, useState, useCallback, useEffect, useLayoutEffect, useRef, ReactNode } from "react"
 
 type ContextType = "account" | "block" | "transaction" | "table" | "action" | null
 
@@ -25,7 +25,7 @@ function loadRecents(): RecentAccount[] {
 interface ContextState {
   type: ContextType
   data: any
-  setContext: (type: ContextType, data: any) => void
+  setContext: (type: ContextType, data: any, options?: { expand?: boolean }) => void
   clearContext: () => void
   parentAccount: any
   backToAccount: () => void
@@ -43,12 +43,22 @@ export function ContextProvider({ children }: { children: ReactNode }) {
   const [parentAccount, setParentAccount] = useState<any>(null)
   const [recentAccounts, setRecentAccounts] = useState<RecentAccount[]>([])
   const [expanded, setExpanded] = useState(false)
+
+  // Set expanded before first paint when opening a shared link
+  useLayoutEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    if (p.get("account") || p.get("tx") || p.get("block")
+      || (p.get("table") && p.get("code"))
+      || (p.get("action") && p.get("code"))) {
+      setExpanded(true)
+    }
+  }, [])
   const typeRef = useRef<ContextType>(null)
   const dataRef = useRef<any>(null)
 
   useEffect(() => { setRecentAccounts(loadRecents()) }, [])
 
-  const setContext = useCallback((t: ContextType, d: any) => {
+  const setContext = useCallback((t: ContextType, d: any, options?: { expand?: boolean }) => {
     // Save parent account when navigating from account to table/action
     if (typeRef.current === "account" && dataRef.current && (t === "table" || t === "action")) {
       setParentAccount(dataRef.current)
@@ -61,6 +71,7 @@ export function ContextProvider({ children }: { children: ReactNode }) {
     dataRef.current = d
     setType(t)
     setData(d)
+    if (options?.expand) setExpanded(true)
 
     if (t === "account" && d?.account_name) {
       const chainName = localStorage.getItem("antelope_chain_name") || ""
@@ -82,6 +93,7 @@ export function ContextProvider({ children }: { children: ReactNode }) {
     setData(null)
     setParentAccount(null)
     setExpanded(false)
+    document.documentElement.classList.remove("shared-link")
   }, [])
 
   const toggleExpanded = useCallback(() => {
