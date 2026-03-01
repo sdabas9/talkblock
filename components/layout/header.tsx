@@ -15,18 +15,18 @@ import {
 } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { PanelLeft, Sun, Moon, SunMoon, Settings, Link2, Bot } from "lucide-react"
+import { PanelLeft, Sun, SunMoon, Settings, Link2, Bot } from "lucide-react"
 import { useState, useEffect } from "react"
 
-type Theme = "light" | "dusk" | "dim" | "dark"
-const THEME_CYCLE: Theme[] = ["light", "dusk", "dim", "dark"]
+type Theme = "light" | "dusk" | "dim"
+const THEME_CYCLE: Theme[] = ["light", "dusk", "dim"]
 const THEME_LABELS: Record<Theme, string> = {
-  light: "Light", dusk: "Dusk", dim: "Dim", dark: "Dark",
+  light: "Light", dusk: "Dusk", dim: "Dim",
 }
-const DARK_CLASSES: Theme[] = ["dusk", "dim", "dark"]
+const DARK_CLASSES: Theme[] = ["dusk", "dim"]
 
 function useTheme() {
-  const [theme, setTheme] = useState<Theme>("dark")
+  const [theme, setTheme] = useState<Theme>("dim")
   useEffect(() => {
     const el = document.documentElement
     const found = DARK_CLASSES.find((c) => el.classList.contains(c))
@@ -136,7 +136,7 @@ export function Header() {
         <UsageIndicator />
         <WalletButton />
         <Button variant="ghost" size="sm" onClick={theme.cycle} title={`Theme: ${theme.label}`} className="gap-1.5 px-2">
-          {theme.theme === "light" ? <Sun className="h-4 w-4" /> : theme.theme === "dark" ? <Moon className="h-4 w-4" /> : <SunMoon className="h-4 w-4" />}
+          {theme.theme === "light" ? <Sun className="h-4 w-4" /> : <SunMoon className="h-4 w-4" />}
           <span className="text-xs hidden sm:inline">{theme.label}</span>
         </Button>
       </div>
