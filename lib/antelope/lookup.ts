@@ -12,7 +12,7 @@ export function isTxId(text: string): boolean {
 }
 
 export function isBlockNum(text: string): boolean {
-  return /^\d+$/.test(text) && text.length > 0
+  return /^\d+$/.test(text)
 }
 
 // Strip @permission suffix (e.g. "account@active" → "account")

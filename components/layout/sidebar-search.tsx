@@ -5,7 +5,7 @@ import { Search, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useChain } from "@/lib/stores/chain-store"
 import { useDetailContext } from "@/lib/stores/context-store"
-import { isAccountName, isTxId, fetchAccountData, fetchBlockData, fetchTxData } from "@/lib/antelope/lookup"
+import { isAccountName, isTxId, isBlockNum, fetchAccountData, fetchBlockData, fetchTxData } from "@/lib/antelope/lookup"
 
 type DetectedType = "Account" | "Transaction" | "Block" | null
 
@@ -13,7 +13,7 @@ function detectType(input: string): DetectedType {
   const trimmed = input.trim().toLowerCase()
   if (!trimmed) return null
   if (isTxId(trimmed)) return "Transaction"
-  if (/^\d+$/.test(trimmed)) return "Block"
+  if (isBlockNum(trimmed)) return "Block"
   if (isAccountName(trimmed)) return "Account"
   return null
 }
@@ -43,6 +43,7 @@ export function SidebarSearch() {
         setContext("block", data)
       } else if (detected === "Transaction") {
         const data = await fetchTxData(trimmed, endpoint, hyperionEndpoint)
+        if (!data) throw new Error("Transaction not found")
         setContext("transaction", data)
       }
       setQuery("")
