@@ -22,6 +22,11 @@ function loadRecents(): RecentAccount[] {
   }
 }
 
+interface PreviousContext {
+  type: ContextType
+  data: any
+}
+
 interface ContextState {
   type: ContextType
   data: any
@@ -29,6 +34,8 @@ interface ContextState {
   clearContext: () => void
   parentAccount: any
   backToAccount: () => void
+  previousContext: PreviousContext | null
+  goBack: () => void
   recentAccounts: RecentAccount[]
   clearRecents: () => void
   expanded: boolean
@@ -41,6 +48,7 @@ export function ContextProvider({ children }: { children: ReactNode }) {
   const [type, setType] = useState<ContextType>(null)
   const [data, setData] = useState<any>(null)
   const [parentAccount, setParentAccount] = useState<any>(null)
+  const [previousContext, setPreviousContext] = useState<PreviousContext | null>(null)
   const [recentAccounts, setRecentAccounts] = useState<RecentAccount[]>([])
   const [expanded, setExpanded] = useState(false)
 
@@ -65,6 +73,15 @@ export function ContextProvider({ children }: { children: ReactNode }) {
     }
     if (t === "account") {
       setParentAccount(null)
+    }
+
+    // Save previous context for back navigation (block→tx, etc.)
+    // Skip for account→table/action (handled by parentAccount) and fresh navigations
+    const isAccountSubNav = typeRef.current === "account" && (t === "table" || t === "action")
+    if (typeRef.current && dataRef.current && typeRef.current !== t && !isAccountSubNav) {
+      setPreviousContext({ type: typeRef.current, data: dataRef.current })
+    } else if (!isAccountSubNav) {
+      setPreviousContext(null)
     }
 
     typeRef.current = t
@@ -92,6 +109,7 @@ export function ContextProvider({ children }: { children: ReactNode }) {
     setType(null)
     setData(null)
     setParentAccount(null)
+    setPreviousContext(null)
     setExpanded(false)
     document.documentElement.classList.remove("shared-link")
   }, [])
@@ -111,13 +129,24 @@ export function ContextProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const goBack = useCallback(() => {
+    setPreviousContext((prev) => {
+      if (!prev) return prev
+      typeRef.current = prev.type
+      dataRef.current = prev.data
+      setType(prev.type)
+      setData(prev.data)
+      return null
+    })
+  }, [])
+
   const clearRecents = useCallback(() => {
     setRecentAccounts([])
     localStorage.removeItem(RECENT_KEY)
   }, [])
 
   return (
-    <DetailContext.Provider value={{ type, data, setContext, clearContext, parentAccount, backToAccount, recentAccounts, clearRecents, expanded, toggleExpanded }}>
+    <DetailContext.Provider value={{ type, data, setContext, clearContext, parentAccount, backToAccount, previousContext, goBack, recentAccounts, clearRecents, expanded, toggleExpanded }}>
       {children}
     </DetailContext.Provider>
   )

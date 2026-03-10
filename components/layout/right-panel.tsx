@@ -23,7 +23,7 @@ class DetailErrorBoundary extends React.Component<
 }
 
 export function RightPanel() {
-  const { type, data, clearContext, parentAccount, backToAccount, setContext, expanded, toggleExpanded } = useDetailContext()
+  const { type, data, clearContext, parentAccount, backToAccount, previousContext, goBack, setContext, expanded, toggleExpanded } = useDetailContext()
   const { endpoint } = useChain()
   const [navLoading, setNavLoading] = useState(false)
 
@@ -99,6 +99,11 @@ export function RightPanel() {
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-1">
+                {previousContext && (
+                  <Button variant="ghost" size="icon" onClick={goBack} className="h-7 w-7" title={`Back to ${previousContext.type}`}>
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                )}
                 <Button variant="ghost" size="icon" onClick={toggleExpanded} className="h-7 w-7" title={expanded ? "Collapse panel" : "Expand panel"}>
                   {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                 </Button>

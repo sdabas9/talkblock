@@ -78,7 +78,16 @@ export async function POST(req: NextRequest) {
         producer: block.producer,
         confirmed: block.confirmed,
         transaction_count: block.transactions?.length ?? 0,
-        transactions: block.transactions?.slice(0, 50) ?? [],
+        transactions: (block.transactions ?? []).slice(0, 50).map((tx: any) => ({
+          id: typeof tx.trx === "string" ? tx.trx : tx.trx?.id || tx.id || "",
+          status: tx.status,
+          cpu_usage_us: tx.cpu_usage_us,
+          net_usage_words: tx.net_usage_words,
+          actions: typeof tx.trx === "object" ? (tx.trx?.transaction?.actions ?? tx.trx?.trx?.actions ?? []).map((a: any) => ({
+            account: a.account,
+            name: a.name,
+          })) : [],
+        })),
       })
     }
 
