@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import { Link2, Bookmark, Trash2, User, Box, FileText, Database, Coins, Shield, Users, FileSignature, ChevronDown, Clock, MessageSquare, LayoutDashboard } from "lucide-react"
 import { useDetailContext } from "@/lib/stores/context-store"
 import { fetchAccountData } from "@/lib/antelope/lookup"
+import { SidebarSearch } from "@/components/layout/sidebar-search"
 
 const TOOL_ICONS: Record<string, React.ElementType> = {
   get_account: User,
@@ -149,6 +150,11 @@ export function LeftPanel() {
             <p className="text-xs text-muted-foreground">Not connected</p>
           )}
         </div>
+
+        <Separator />
+
+        {/* Search */}
+        <SidebarSearch />
 
         <Separator />
 
