@@ -78,14 +78,6 @@ export function LLMProvider({ children }: { children: ReactNode }) {
     if (mode) setLLMModeState(mode)
   }, [])
 
-  // Without Supabase, built-in mode can't work — force BYOK
-  useEffect(() => {
-    if (!isAuthed && llmMode === "builtin") {
-      setLLMModeState("byok")
-      localStorage.setItem("llm_mode", "byok")
-    }
-  }, [isAuthed, llmMode])
-
   // When authed, sync non-key settings from server
   useEffect(() => {
     if (!isAuthed) return

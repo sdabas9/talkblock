@@ -24,7 +24,7 @@ import { refetchToolData, REFRESHABLE_TOOLS, formatAge } from "@/lib/antelope/re
 export function ChatPanel() {
   const { isConfigured, getClientConfig, llmMode } = useLLM()
   const { endpoint, hyperionEndpoint, chainName, chainInfo } = useChain()
-  const { accountName } = useWallet()
+  const { accountName, login: walletLogin, connecting: walletConnecting } = useWallet()
   const { user } = useAuth()
   const credits = useCredits()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -202,23 +202,37 @@ export function ChatPanel() {
           <path d="M24 10V24M24 24L36 17M24 24L12 17M24 24V38" stroke="white" strokeWidth="1.5" strokeLinejoin="round" opacity="0.6"/>
         </svg>
         <h2 className="text-xl font-semibold">Welcome to Talkblock</h2>
-        <p className="text-muted-foreground text-center max-w-md">
-          Chat with the blockchain using AI. Connect a wallet for 5 free requests per day, or bring your own API key.
-        </p>
-        <div className="flex gap-3">
-          <LLMSettings trigger={
-            <Button variant="default" size="lg">
-              <Wallet className="h-4 w-4 mr-2" />
-              Connect Wallet
-            </Button>
-          } />
-          <LLMSettings trigger={
-            <Button variant="outline" size="lg">
-              <Key className="h-4 w-4 mr-2" />
-              Use Own API Key
-            </Button>
-          } />
-        </div>
+        {accountName ? (
+          <>
+            <p className="text-muted-foreground text-center max-w-md">
+              Wallet connected as <span className="font-medium text-foreground">{accountName}</span>. Add an API key to start chatting.
+            </p>
+            <LLMSettings trigger={
+              <Button variant="default" size="lg">
+                <Key className="h-4 w-4 mr-2" />
+                Configure API Key
+              </Button>
+            } />
+          </>
+        ) : (
+          <>
+            <p className="text-muted-foreground text-center max-w-md">
+              Chat with the blockchain using AI. Connect a wallet for 5 free requests per day, or bring your own API key.
+            </p>
+            <div className="flex gap-3">
+              <Button variant="default" size="lg" onClick={walletLogin} disabled={walletConnecting}>
+                <Wallet className="h-4 w-4 mr-2" />
+                {walletConnecting ? "Connecting..." : "Connect Wallet"}
+              </Button>
+              <LLMSettings trigger={
+                <Button variant="outline" size="lg">
+                  <Key className="h-4 w-4 mr-2" />
+                  Use Own API Key
+                </Button>
+              } />
+            </div>
+          </>
+        )}
       </div>
     )
   }
