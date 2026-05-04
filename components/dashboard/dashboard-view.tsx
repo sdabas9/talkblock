@@ -3,24 +3,31 @@
 import { useState, useMemo, DragEvent } from "react"
 import { useHistory } from "@/lib/stores/history-store"
 import { useDashboard } from "@/lib/stores/dashboard-store"
+import { useChain } from "@/lib/stores/chain-store"
 import { DashboardCard } from "./dashboard-card"
 import { Bookmark } from "lucide-react"
 
 export function DashboardView() {
   const { bookmarks } = useHistory()
   const { itemOrder, setItemOrder } = useDashboard()
+  const { chainName } = useChain()
   const [dragId, setDragId] = useState<string | null>(null)
   const [dropTargetId, setDropTargetId] = useState<string | null>(null)
 
+  const chainBookmarks = useMemo(
+    () => bookmarks.filter((b) => b.chain_name === chainName),
+    [bookmarks, chainName],
+  )
+
   const orderedBookmarks = useMemo(() => {
     const orderMap = new Map(itemOrder.map((id, i) => [id, i]))
-    return [...bookmarks].sort((a, b) => {
+    return [...chainBookmarks].sort((a, b) => {
       const ai = orderMap.get(a.id) ?? Infinity
       const bi = orderMap.get(b.id) ?? Infinity
       if (ai === Infinity && bi === Infinity) return 0
       return ai - bi
     })
-  }, [bookmarks, itemOrder])
+  }, [chainBookmarks, itemOrder])
 
   const handleDragStart = (e: DragEvent, id: string) => {
     setDragId(id)
@@ -58,14 +65,16 @@ export function DashboardView() {
     setDropTargetId(null)
   }
 
-  if (bookmarks.length === 0) {
+  if (chainBookmarks.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="text-center max-w-md space-y-3">
           <Bookmark className="h-12 w-12 mx-auto text-muted-foreground/50" />
           <h2 className="text-lg font-medium text-muted-foreground">No bookmarks yet</h2>
           <p className="text-sm text-muted-foreground">
-            Chat with the blockchain and bookmark results to build your dashboard.
+            {bookmarks.length === 0
+              ? "Chat with the blockchain and bookmark results to build your dashboard."
+              : `No bookmarks for ${chainName || "this chain"} yet. Switch chains to see others.`}
           </p>
         </div>
       </div>

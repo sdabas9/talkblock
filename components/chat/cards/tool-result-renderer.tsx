@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { AccountCard } from "./account-card"
 import { BlockCard } from "./block-card"
 import { TransactionCard } from "./transaction-card"
@@ -74,14 +75,21 @@ export function ToolResultRenderer({ toolName, result, onTxError }: ToolResultRe
   const bookmarked = isBookmarked(toolName, label)
   const existingBookmark = bookmarks.find((b) => b.tool_name === toolName && b.label === label)
 
+  // tx-proposal cards have editable form fields. Capture the user's current
+  // edits so the bookmark saves what's on screen, not the original tool output.
+  const [editedTxActions, setEditedTxActions] = useState<Array<{ account: string; name: string; data: Record<string, unknown> }> | null>(null)
+
   const toggleBookmark = async () => {
     if (bookmarked && existingBookmark) {
       await removeBookmark(existingBookmark.id)
     } else {
+      const bookmarkResult = toolName === "build_transaction" && editedTxActions
+        ? { ...result, actions: editedTxActions }
+        : result
       await addBookmark({
         toolName,
         label,
-        result,
+        result: bookmarkResult,
         chainName: chainName || undefined,
         chainEndpoint: endpoint || undefined,
       })
@@ -118,7 +126,7 @@ export function ToolResultRenderer({ toolName, result, onTxError }: ToolResultRe
           </div>
         )
       case "build_transaction":
-        return <TxProposalCard data={result as any} onTxError={onTxError} />
+        return <TxProposalCard data={result as any} onTxError={onTxError} onActionsChange={setEditedTxActions} />
       case "get_actions":
         return <ActionsCard data={result as any} />
       case "get_transfers":

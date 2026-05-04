@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -25,9 +25,10 @@ interface TxProposalCardProps {
     status: string
   }
   onTxError?: (error: string, actions: TxAction[]) => void
+  onActionsChange?: (actions: TxAction[]) => void
 }
 
-export function TxProposalCard({ data, onTxError }: TxProposalCardProps) {
+export function TxProposalCard({ data, onTxError, onActionsChange }: TxProposalCardProps) {
   const { session, transact } = useWallet()
   const { chainName, endpoint, hyperionEndpoint } = useChain()
   const { setContext } = useDetailContext()
@@ -41,6 +42,13 @@ export function TxProposalCard({ data, onTxError }: TxProposalCardProps) {
   const [editableActions, setEditableActions] = useState<TxAction[]>(
     () => data.actions.map((a) => ({ ...a, data: { ...a.data } }))
   )
+
+  // Mirror the current edited actions up to the parent so the bookmark button
+  // (which lives in tool-result-renderer) can capture the values currently in
+  // the form rather than the original tool output.
+  useEffect(() => {
+    onActionsChange?.(editableActions)
+  }, [editableActions, onActionsChange])
 
   const updateField = (actionIdx: number, fieldKey: string, value: string) => {
     setEditableActions((prev) => {
