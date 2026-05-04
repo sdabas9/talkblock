@@ -1,0 +1,21 @@
+name: Supabase keepalive
+
+# Free-tier Supabase projects pause after ~7 days of API inactivity. This
+# workflow runs a tiny SELECT once a day so the project stays active.
+# Requires repo secret SUPABASE_ANON_KEY.
+
+on:
+  schedule:
+    - cron: '0 12 * * *'  # daily at 12:00 UTC
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST
+        run: |
+          curl --fail --silent --show-error \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            "https://nednzedwmguhqhfnszyh.supabase.co/rest/v1/app_config?select=key&limit=1"
