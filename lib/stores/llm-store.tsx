@@ -15,12 +15,12 @@ const DEFAULT_MODELS: Record<LLMProviderType, string[]> = {
   anthropic: ["claude-sonnet-4-5-20250929", "claude-opus-4-6", "claude-haiku-4-5-20251001"],
   openai: ["gpt-4o", "gpt-4o-mini", "o1", "o3-mini"],
   google: ["gemini-2.0-flash", "gemini-2.0-pro"],
-  chutes: ["moonshotai/Kimi-K2-Thinking-TEE", "deepseek-ai/DeepSeek-V3-0324-TEE"],
+  chutes: ["moonshotai/Kimi-K2.5-TEE", "deepseek-ai/DeepSeek-V3-0324-TEE"],
 }
 
 export const CHUTES_MODEL_LABELS: Record<string, string> = {
   "deepseek-ai/DeepSeek-V3-0324-TEE": "DeepSeek V3 TEE",
-  "moonshotai/Kimi-K2-Thinking-TEE": "Kimi K2 Thinking TEE",
+  "moonshotai/Kimi-K2.5-TEE": "Kimi K2.5 TEE",
 }
 
 
