@@ -1,4 +1,4 @@
-import { streamText, convertToModelMessages, stepCountIs, wrapLanguageModel, extractReasoningMiddleware } from "ai"
+import { streamText, convertToModelMessages, stepCountIs, wrapLanguageModel, extractReasoningMiddleware, createUIMessageStream, JsonToSseTransformStream, UI_MESSAGE_STREAM_HEADERS } from "ai"
 import { createLLMModel } from "@/lib/llm/provider"
 import { createChainTools } from "@/lib/llm/tools"
 import { optimizeMessagesForLLM } from "@/lib/llm/optimize-messages"
@@ -71,13 +71,6 @@ export async function POST(req: Request) {
     return new Response("LLM not configured", { status: 400 })
   }
 
-  let llmModel = createLLMModel(llmProvider, llmApiKey, llmModelName)
-  if (llmProvider === "chutes") {
-    llmModel = wrapLanguageModel({
-      model: llmModel,
-      middleware: extractReasoningMiddleware({ tagName: "think" }),
-    })
-  }
   const tools = createChainTools(chainEndpoint || null, hyperionEndpoint || null, bodyChainName || null)
 
   // Build available contract guides list for system prompt
@@ -116,13 +109,16 @@ ${walletAccount ? `The user's connected wallet account is: ${walletAccount}. Whe
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const convertedMessages = await convertToModelMessages(optimizedMessages as any)
 
-  const streamConfig = {
+  const baseConfig = {
     system: systemPrompt,
     messages: convertedMessages,
     tools,
     maxOutputTokens: 4096,
     stopWhen: stepCountIs(5),
-    onFinish: async ({ usage }: { usage: { inputTokens?: number; outputTokens?: number } }) => {
+  }
+
+  const makeOnFinish = (modelUsed: string) =>
+    async ({ usage }: { usage: { inputTokens?: number; outputTokens?: number } }) => {
       if (bodyChainId && walletAccount && billingMode !== "byok") {
         await recordUsage(
           bodyChainId,
@@ -130,26 +126,73 @@ ${walletAccount ? `The user's connected wallet account is: ${walletAccount}. Whe
           billingMode as "free" | "paid",
           usage.inputTokens ?? 0,
           usage.outputTokens ?? 0,
-          llmModelName
+          modelUsed
         )
       }
-    },
-  }
+    }
 
-  try {
-    const result = streamText({ model: llmModel, ...streamConfig })
-    return result.toUIMessageStreamResponse()
-  } catch (e) {
-    // Fallback model for Chutes if primary fails
+  // Chutes path: try primary, fall back to chutes_fallback_model on early stream error.
+  // streamText returns immediately and the upstream call happens lazily during
+  // iteration; the previous try/catch never saw 429/404/etc. errors. By iterating
+  // toUIMessageStream() ourselves we can detect a failure before any chunk is
+  // forwarded and retry with the fallback model transparently.
+  if (llmProvider === "chutes") {
     const fallbackModelName = await getAppConfig("chutes_fallback_model")
-    if (llmProvider === "chutes" && fallbackModelName) {
-      const fallbackModel = wrapLanguageModel({
-        model: createLLMModel("chutes", llmApiKey, fallbackModelName),
+    const candidates = [llmModelName, fallbackModelName]
+      .filter((m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i)
+
+    const buildChutes = (name: string) =>
+      wrapLanguageModel({
+        model: createLLMModel("chutes", llmApiKey, name),
         middleware: extractReasoningMiddleware({ tagName: "think" }),
       })
-      const result = streamText({ model: fallbackModel, ...streamConfig })
-      return result.toUIMessageStreamResponse()
-    }
-    throw e
+
+    const uiStream = createUIMessageStream({
+      execute: async ({ writer }) => {
+        let lastErr: unknown = null
+        for (let i = 0; i < candidates.length; i++) {
+          const name = candidates[i]
+          const isLast = i === candidates.length - 1
+          const result = streamText({
+            model: buildChutes(name),
+            ...baseConfig,
+            onFinish: makeOnFinish(name),
+          })
+
+          let yieldedAny = false
+          try {
+            for await (const chunk of result.toUIMessageStream()) {
+              yieldedAny = true
+              writer.write(chunk)
+            }
+            return
+          } catch (err) {
+            if (yieldedAny || isLast) throw err
+            console.error(`[chat] chutes ${name} failed before output, trying fallback:`, err)
+            lastErr = err
+          }
+        }
+        if (lastErr) throw lastErr
+      },
+      onError: (e) => {
+        const msg = e instanceof Error ? e.message : String(e)
+        console.error("[chat] uiStream onError:", msg)
+        return msg
+      },
+    })
+
+    return new Response(
+      uiStream.pipeThrough(new JsonToSseTransformStream()),
+      { headers: UI_MESSAGE_STREAM_HEADERS },
+    )
   }
+
+  // Non-Chutes providers (anthropic / openai / google) — direct stream, no fallback configured.
+  const llmModel = createLLMModel(llmProvider, llmApiKey, llmModelName)
+  const result = streamText({
+    model: llmModel,
+    ...baseConfig,
+    onFinish: makeOnFinish(llmModelName),
+  })
+  return result.toUIMessageStreamResponse()
 }
