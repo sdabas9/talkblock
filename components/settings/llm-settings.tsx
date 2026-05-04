@@ -25,7 +25,8 @@ const ALL_PROVIDERS: { value: string; label: string; description: string }[] = [
 
 function LLMContent() {
   const { llmMode, setLLMMode, config, hasApiKey, isConfigured, setProvider, setApiKey, setModel, getModelsForProvider } = useLLM()
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
+  const builtinDisabled = !authLoading && !user
   const [apiKeyInput, setApiKeyInput] = useState("")
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -77,23 +78,29 @@ function LLMContent() {
       <div>
         <Label className="text-xs text-muted-foreground">Provider</Label>
         <div className="grid grid-cols-2 gap-2 mt-2">
-          {ALL_PROVIDERS.map((p) => (
-            <button
-              key={p.value}
-              onClick={() => handleProviderSelect(p.value)}
-              className={`text-left rounded-lg border-2 px-3 py-2 transition-colors ${
-                activeProvider === p.value
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:border-muted-foreground/30"
-              }`}
-            >
-              <div className="flex items-center gap-1.5">
-                {activeProvider === p.value && <Check className="h-3 w-3 text-primary shrink-0" />}
-                <span className="text-sm font-medium">{p.label}</span>
-              </div>
-              <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{p.description}</p>
-            </button>
-          ))}
+          {ALL_PROVIDERS.map((p) => {
+            const disabled = p.value === "builtin" && builtinDisabled
+            return (
+              <button
+                key={p.value}
+                onClick={() => handleProviderSelect(p.value)}
+                disabled={disabled}
+                className={`text-left rounded-lg border-2 px-3 py-2 transition-colors ${
+                  activeProvider === p.value
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-muted-foreground/30"
+                } ${disabled ? "opacity-50 cursor-not-allowed hover:border-border" : ""}`}
+              >
+                <div className="flex items-center gap-1.5">
+                  {activeProvider === p.value && <Check className="h-3 w-3 text-primary shrink-0" />}
+                  <span className="text-sm font-medium">{p.label}</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">
+                  {disabled ? "Connect a wallet to enable" : p.description}
+                </p>
+              </button>
+            )
+          })}
         </div>
       </div>
 

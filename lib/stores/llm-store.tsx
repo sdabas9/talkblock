@@ -52,7 +52,7 @@ interface LLMState {
 const LLMContext = createContext<LLMState | null>(null)
 
 export function LLMProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [config, setConfig] = useState<LLMConfig | null>(null)
   const [hasApiKey, setHasApiKey] = useState(false)
   const [llmMode, setLLMModeState] = useState<LLMMode>("builtin")
@@ -78,13 +78,15 @@ export function LLMProvider({ children }: { children: ReactNode }) {
     if (mode) setLLMModeState(mode)
   }, [])
 
-  // Without Supabase, built-in mode can't work — force BYOK
+  // Without an authed user, built-in mode can't work — force BYOK.
+  // Wait for auth to finish loading so we don't downgrade returning users
+  // before their session is restored from localStorage.
   useEffect(() => {
-    if (!isAuthed && llmMode === "builtin") {
+    if (!authLoading && !isAuthed && llmMode === "builtin") {
       setLLMModeState("byok")
       localStorage.setItem("llm_mode", "byok")
     }
-  }, [isAuthed, llmMode])
+  }, [authLoading, isAuthed, llmMode])
 
   // When authed, sync non-key settings from server
   useEffect(() => {
