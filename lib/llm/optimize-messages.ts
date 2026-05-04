@@ -172,6 +172,33 @@ function summarizeToolOutput(toolName: string, output: any): string {
 // Core optimisation
 // ---------------------------------------------------------------------------
 
+// Synthetic bookmark messages (chat-panel.tsx inserts these on bookmark click)
+// carry a tool-result part with no preceding tool_use call. Sending that to
+// strict providers like Anthropic produces a 400 ("tool_use ids were found
+// without tool_result blocks") and the stream silently dies. Rewrite the
+// message into plain assistant text so any provider can consume it.
+function rewriteBookmarkMessage<T extends Message>(msg: T): T {
+  if (!Array.isArray(msg.parts)) return msg
+
+  const lines: string[] = []
+  for (const part of msg.parts) {
+    if (typeof part.type === "string" && part.type.startsWith("tool-") && part.output !== undefined) {
+      const toolName = part.type.slice("tool-".length)
+      let json: string
+      try {
+        json = JSON.stringify(part.output, null, 2)
+      } catch {
+        json = String(part.output)
+      }
+      lines.push(`[Bookmarked ${toolName} result]\n\`\`\`json\n${json}\n\`\`\``)
+    } else if (part.type === "text" && typeof (part as unknown as { text?: unknown }).text === "string") {
+      lines.push((part as unknown as { text: string }).text)
+    }
+  }
+
+  return { ...msg, parts: [{ type: "text", text: lines.join("\n\n") }] } as T
+}
+
 export function optimizeMessagesForLLM<T extends Message>(
   messages: T[],
   options?: OptimizeOptions,
@@ -181,6 +208,15 @@ export function optimizeMessagesForLLM<T extends Message>(
 
   // Deep clone so we never mutate the caller's data
   let msgs: T[] = JSON.parse(JSON.stringify(messages))
+
+  // Rewrite synthetic bookmark messages before any other processing
+  msgs = msgs.map((m) => {
+    const id = (m as { id?: unknown }).id
+    if (typeof id === "string" && id.startsWith("bookmark-")) {
+      return rewriteBookmarkMessage(m)
+    }
+    return m
+  })
 
   // --- Tool result summarization ---
   // Walk assistant messages in reverse, counting tool-result rounds.

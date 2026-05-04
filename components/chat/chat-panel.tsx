@@ -29,6 +29,7 @@ export function ChatPanel() {
   const credits = useCredits()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [outOfCredits, setOutOfCredits] = useState(false)
+  const [chatError, setChatError] = useState<string | null>(null)
 
   const endpointRef = useRef(endpoint)
   const hyperionRef = useRef(hyperionEndpoint)
@@ -85,7 +86,14 @@ export function ChatPanel() {
     [customFetch]
   )
 
-  const { messages, sendMessage, setMessages, status } = useChat({ transport })
+  const { messages, sendMessage, setMessages, status } = useChat({
+    transport,
+    onError: (e) => {
+      const msg = e?.message || String(e) || "Chat request failed"
+      if (msg === "Out of credits") return
+      setChatError(msg)
+    },
+  })
 
   const isLoading = status === "submitted" || status === "streaming"
 
@@ -116,6 +124,7 @@ export function ChatPanel() {
 
   const handleSend = useCallback(async (text: string) => {
     setOutOfCredits(false)
+    setChatError(null)
     sendMessage({ text })
   }, [sendMessage])
 
@@ -346,6 +355,24 @@ export function ChatPanel() {
               </ChatMessage>
             ))
             })()
+          )}
+
+          {chatError && !outOfCredits && (
+            <div className="mx-4 my-3 p-4 rounded-lg border border-red-500/20 bg-red-500/5">
+              <div className="flex items-start gap-2 text-sm font-medium text-red-600 dark:text-red-400">
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <div>Chat request failed</div>
+                  <p className="text-xs font-normal text-muted-foreground mt-1 break-words">{chatError}</p>
+                </div>
+                <button
+                  onClick={() => setChatError(null)}
+                  className="text-[10px] text-muted-foreground hover:text-foreground"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
           )}
 
           {outOfCredits && (
