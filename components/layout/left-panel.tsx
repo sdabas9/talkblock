@@ -1,14 +1,15 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { usePanels } from "@/lib/stores/panel-store"
 import { useChain } from "@/lib/stores/chain-store"
 import { useHistory } from "@/lib/stores/history-store"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { Link2, Bookmark, Trash2, User, Box, FileText, Database, Coins, Shield, Users, FileSignature, ChevronDown, Clock, MessageSquare, LayoutDashboard } from "lucide-react"
+import { Link2, Bookmark, Trash2, User, Box, FileText, Database, Coins, Shield, Users, FileSignature, ChevronDown, Clock, MessageSquare, LayoutDashboard, Pencil } from "lucide-react"
 import { useDetailContext } from "@/lib/stores/context-store"
 import { fetchAccountData } from "@/lib/antelope/lookup"
 import { SidebarSearch } from "@/components/layout/sidebar-search"
@@ -24,10 +25,97 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
   build_transaction: FileSignature,
 }
 
+function BookmarkRow({
+  bookmark,
+  Icon,
+  onShow,
+  onRemove,
+  onRename,
+}: {
+  bookmark: { id: string; tool_name: string; label: string }
+  Icon: React.ElementType
+  onShow: () => void
+  onRemove: () => void
+  onRename: (label: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(bookmark.label)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const startEditing = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setValue(bookmark.label)
+    setEditing(true)
+    setTimeout(() => {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }, 0)
+  }
+
+  const save = () => {
+    const trimmed = value.trim()
+    if (trimmed && trimmed !== bookmark.label) onRename(trimmed)
+    setEditing(false)
+  }
+
+  const cancel = () => setEditing(false)
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") save()
+    if (e.key === "Escape") cancel()
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <Icon className="h-3 w-3 shrink-0 text-muted-foreground" />
+        <Input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={onKeyDown}
+          onBlur={save}
+          className="h-6 text-xs px-1.5 flex-1"
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 group">
+      <button
+        className="flex items-center gap-1.5 text-xs hover:text-primary transition-colors text-left truncate flex-1 cursor-pointer"
+        onClick={onShow}
+      >
+        <Icon className="h-3 w-3 shrink-0 text-muted-foreground" />
+        <span className="truncate">{bookmark.label}</span>
+      </button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+        onClick={startEditing}
+        aria-label="Rename bookmark"
+      >
+        <Pencil className="h-3 w-3" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+        onClick={onRemove}
+        aria-label="Delete bookmark"
+      >
+        <Trash2 className="h-3 w-3" />
+      </Button>
+    </div>
+  )
+}
+
 export function LeftPanel() {
   const { leftOpen, view, setView } = usePanels()
   const { chainInfo, chainName, endpoint, hyperionEndpoint, presets } = useChain()
-  const { bookmarks, removeBookmark } = useHistory()
+  const { bookmarks, removeBookmark, updateBookmarkLabel } = useHistory()
   const { recentAccounts, clearRecents, setContext } = useDetailContext()
   const [chainExpanded, setChainExpanded] = useState(false)
   const [rpcUp, setRpcUp] = useState(false)
@@ -191,23 +279,14 @@ export function LeftPanel() {
               {chainBookmarks.map((bookmark) => {
                 const Icon = TOOL_ICONS[bookmark.tool_name] || FileText
                 return (
-                  <div key={bookmark.id} className="flex items-center gap-1.5 group">
-                    <button
-                      className="flex items-center gap-1.5 text-xs hover:text-primary transition-colors text-left truncate flex-1 cursor-pointer"
-                      onClick={() => handleBookmarkClick(bookmark)}
-                    >
-                      <Icon className="h-3 w-3 shrink-0 text-muted-foreground" />
-                      <span className="truncate">{bookmark.label}</span>
-                    </button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                      onClick={() => removeBookmark(bookmark.id)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
+                  <BookmarkRow
+                    key={bookmark.id}
+                    bookmark={bookmark}
+                    Icon={Icon}
+                    onShow={() => handleBookmarkClick(bookmark)}
+                    onRemove={() => removeBookmark(bookmark.id)}
+                    onRename={(label) => updateBookmarkLabel(bookmark.id, label)}
+                  />
                 )
               })}
             </div>
