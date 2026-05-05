@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { RefreshCw } from "lucide-react"
-import { chainAccent } from "@/lib/dashboard/chain-accent"
 import { REFRESHABLE_TOOLS, refetchToolData, formatAge } from "@/lib/antelope/refetch"
 import { useHistory } from "@/lib/stores/history-store"
 
@@ -56,18 +55,12 @@ export function DashboardHeader({ chainName, chainEndpoint, hyperionEndpoint, bo
     }
   }
 
-  const accent = chainAccent(chainName)
   const count = bookmarks.length
   const noun = count === 1 ? "bookmark" : "bookmarks"
 
   return (
     <div className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-border/60">
       <div className="flex items-center gap-2 text-sm">
-        <span
-          className="inline-block h-2 w-2 rounded-full shrink-0"
-          style={{ background: accent }}
-          aria-hidden="true"
-        />
         <span className="font-medium">{chainName || "No chain"}</span>
         <span className="text-muted-foreground">·</span>
         <span className="text-muted-foreground">{count} {noun}</span>
