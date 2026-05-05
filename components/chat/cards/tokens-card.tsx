@@ -19,8 +19,22 @@ interface TokensCardProps {
   }
 }
 
+const PRIORITY_SYMBOLS = ["EOS", "A"]
+
+function sortByPriority(tokens: Token[]): Token[] {
+  return [...tokens].sort((a, b) => {
+    const aIdx = PRIORITY_SYMBOLS.indexOf(String(a.symbol || ""))
+    const bIdx = PRIORITY_SYMBOLS.indexOf(String(b.symbol || ""))
+    if (aIdx >= 0 && bIdx >= 0) return aIdx - bIdx
+    if (aIdx >= 0) return -1
+    if (bIdx >= 0) return 1
+    return 0
+  })
+}
+
 export function TokensCard({ data }: TokensCardProps) {
   const { tokens, account } = data
+  const sortedTokens = tokens ? sortByPriority(tokens) : []
 
   if (!tokens || tokens.length === 0) {
     return (
@@ -54,7 +68,7 @@ export function TokensCard({ data }: TokensCardProps) {
               </tr>
             </thead>
             <tbody>
-              {tokens.map((token, i) => (
+              {sortedTokens.map((token, i) => (
                 <tr key={i} className="border-t">
                   <td className="px-3 py-1.5 whitespace-nowrap font-medium">{String(token.symbol || "—")}</td>
                   <td className="px-3 py-1.5 whitespace-nowrap text-right font-mono">

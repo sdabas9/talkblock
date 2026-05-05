@@ -106,15 +106,29 @@ export function ToolResultRenderer({ toolName, result, onTxError }: ToolResultRe
         return <TransactionCard data={result as any} />
       case "get_table_rows":
         return <TableCard data={result as any} />
-      case "get_currency_balance":
+      case "get_currency_balance": {
+        // Sort priority symbols (EOS first, A second) to the front of the list.
+        // Each balance is a string like "100.0000 EOS"; priority is matched on the symbol after the space.
+        const PRIORITY = ["EOS", "A"]
+        const balances = [...(result.balances || [])].sort((a: string, b: string) => {
+          const aSym = String(a).split(" ").pop() || ""
+          const bSym = String(b).split(" ").pop() || ""
+          const aIdx = PRIORITY.indexOf(aSym)
+          const bIdx = PRIORITY.indexOf(bSym)
+          if (aIdx >= 0 && bIdx >= 0) return aIdx - bIdx
+          if (aIdx >= 0) return -1
+          if (bIdx >= 0) return 1
+          return 0
+        })
         return (
           <div className="text-sm bg-muted rounded-md px-3 py-2 my-1">
             <span className="text-muted-foreground">Balances for </span>
             <span className="font-medium">{String(result.account)}</span>
             <span className="text-muted-foreground">: </span>
-            <span className="font-medium">{(result.balances || []).join(", ") || "None"}</span>
+            <span className="font-medium">{balances.join(", ") || "None"}</span>
           </div>
         )
+      }
       case "get_producers":
         return <TableCard data={{ rows: result.producers || [] }} />
       case "get_abi":
