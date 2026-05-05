@@ -13,6 +13,7 @@ import { dgoods } from "./guides/dgoods"
 import { resPink } from "./guides/res-pink"
 import { thezeosalias } from "./guides/thezeosalias"
 import { coreVaulta } from "./guides/core-vaulta"
+import { swapDefi } from "./guides/swap-defi"
 
 export const GUIDES: ContractGuide[] = [
   eosioSystem,
@@ -24,4 +25,5 @@ export const GUIDES: ContractGuide[] = [
   resPink,
   thezeosalias,
   coreVaulta,
+  swapDefi,
 ]
