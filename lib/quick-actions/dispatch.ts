@@ -24,5 +24,6 @@ export async function dispatchQuickAction(
     quickAction: true,
   }
 
+  if (typeof window === "undefined") return
   window.dispatchEvent(new CustomEvent("bookmark-show", { detail }))
 }
