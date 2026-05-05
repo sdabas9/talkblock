@@ -4,13 +4,17 @@ import { useState, useMemo, DragEvent } from "react"
 import { useHistory } from "@/lib/stores/history-store"
 import { useDashboard } from "@/lib/stores/dashboard-store"
 import { useChain } from "@/lib/stores/chain-store"
+import { useWallet } from "@/lib/stores/wallet-store"
 import { DashboardCard } from "./dashboard-card"
-import { Bookmark } from "lucide-react"
+import { getCardSize } from "@/lib/dashboard/card-sizes"
+import { DashboardHeader } from "./dashboard-header"
+import { EmptyState } from "./empty-state"
 
 export function DashboardView() {
   const { bookmarks } = useHistory()
   const { itemOrder, setItemOrder } = useDashboard()
-  const { chainName } = useChain()
+  const { chainName, endpoint, hyperionEndpoint } = useChain()
+  const { accountName: walletAccount } = useWallet()
   const [dragId, setDragId] = useState<string | null>(null)
   const [dropTargetId, setDropTargetId] = useState<string | null>(null)
 
@@ -67,39 +71,48 @@ export function DashboardView() {
 
   if (chainBookmarks.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="text-center max-w-md space-y-3">
-          <Bookmark className="h-12 w-12 mx-auto text-muted-foreground/50" />
-          <h2 className="text-lg font-medium text-muted-foreground">No bookmarks yet</h2>
-          <p className="text-sm text-muted-foreground">
-            {bookmarks.length === 0
-              ? "Chat with the blockchain and bookmark results to build your dashboard."
-              : `No bookmarks for ${chainName || "this chain"} yet. Switch chains to see others.`}
-          </p>
-        </div>
-      </div>
+      <EmptyState
+        chainName={chainName}
+        chainEndpoint={endpoint}
+        walletAccount={walletAccount}
+      />
     )
   }
 
   return (
-    <div className="flex-1 overflow-auto p-4 md:p-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" onDragEnd={handleDragEnd}>
-        {orderedBookmarks.map((bookmark) => (
-          <div
-            key={bookmark.id}
-            data-bookmark-id={bookmark.id}
-            className={`transition-opacity ${dragId === bookmark.id ? "opacity-50" : ""} ${
-              dropTargetId === bookmark.id ? "ring-2 ring-primary rounded-lg" : ""
-            }`}
-          >
-            <DashboardCard
-              bookmark={bookmark}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-            />
-          </div>
-        ))}
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <DashboardHeader
+        chainName={chainName}
+        chainEndpoint={endpoint}
+        hyperionEndpoint={hyperionEndpoint}
+        bookmarks={orderedBookmarks}
+      />
+      <div className="flex-1 overflow-auto p-4 md:p-6">
+        <div
+          className="grid grid-cols-1 lg:grid-cols-2 gap-4 [grid-auto-flow:dense]"
+          onDragEnd={handleDragEnd}
+        >
+          {orderedBookmarks.map((bookmark) => {
+            const size = getCardSize(bookmark.tool_name)
+            const span = size === "wide" ? "lg:col-span-2" : ""
+            return (
+              <div
+                key={bookmark.id}
+                data-bookmark-id={bookmark.id}
+                className={`transition-opacity ${span} ${dragId === bookmark.id ? "opacity-50 scale-95" : ""} ${
+                  dropTargetId === bookmark.id ? "ring-2 ring-primary rounded-xl" : ""
+                }`}
+              >
+                <DashboardCard
+                  bookmark={bookmark}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                />
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
