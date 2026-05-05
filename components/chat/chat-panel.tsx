@@ -288,17 +288,6 @@ export function ChatPanel() {
                   .filter((p) => isToolUIPart(p) && (getToolName(p) === "get_abi" || getToolName(p) === "get_abi_snapshot") && p.state === "output-available")
                   .map((p) => (p as { output: Record<string, unknown> }).output)
               )
-              // Find the last build_transaction result so we can hide earlier duplicates
-              let lastTxMsgId: string | null = null
-              let lastTxPartIdx = -1
-              messages.forEach((m) => {
-                m.parts.forEach((p, pi) => {
-                  if (isToolUIPart(p) && getToolName(p) === "build_transaction" && p.state === "output-available") {
-                    lastTxMsgId = m.id
-                    lastTxPartIdx = pi
-                  }
-                })
-              })
               return messages
               .filter((message) => {
                 // Hide system trigger messages from display
@@ -311,10 +300,6 @@ export function ChatPanel() {
               .map((message, idx) => (
               <ChatMessage key={`${message.id}-${idx}`} role={message.role as "user" | "assistant"}>
                 {message.parts.map((part, i) => {
-                  // Deduplicate build_transaction: only show the last one across the entire conversation
-                  if (isToolUIPart(part) && getToolName(part) === "build_transaction" && part.state === "output-available") {
-                    if (message.id !== lastTxMsgId || i !== lastTxPartIdx) return null
-                  }
                   if (part.type === "text") {
                     if (message.role === "assistant") {
                       // Bookmark age labels — render as subtle timestamp
