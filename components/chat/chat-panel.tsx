@@ -165,29 +165,32 @@ export function ChatPanel() {
         }
       }
 
+      const isQuickAction = (bookmark as { quickAction?: boolean }).quickAction === true
+
       const now = new Date()
       const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
       const staleNote = refreshed
         ? `Refreshed at ${timeStr}`
         : `Saved ${formatAge(bookmark.created_at)}`
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parts: any[] = [
+        {
+          type: `tool-${bookmark.tool_name}`,
+          toolCallId: `bookmark-${bookmark.id}`,
+          state: "output-available",
+          input: {},
+          output: resultData,
+        },
+      ]
+      if (!isQuickAction) {
+        parts.push({ type: "text", text: staleNote })
+      }
+
       const cardMessage: UIMessage = {
         id: `bookmark-${bookmark.id}-${Date.now()}`,
         role: "assistant",
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        parts: [
-          {
-            type: `tool-${bookmark.tool_name}`,
-            toolCallId: `bookmark-${bookmark.id}`,
-            state: "output-available",
-            input: {},
-            output: resultData,
-          } as any,
-          {
-            type: "text",
-            text: staleNote,
-          },
-        ],
+        parts,
       }
       setMessages((prev) => [...prev, cardMessage])
     }
