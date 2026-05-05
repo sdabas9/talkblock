@@ -9,10 +9,13 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { Link2, Bookmark, Trash2, User, Box, FileText, Database, Coins, Shield, Users, FileSignature, ChevronDown, Clock, MessageSquare, LayoutDashboard, Pencil } from "lucide-react"
+import { Link2, Bookmark, Trash2, User, Box, FileText, Database, Coins, Shield, Users, FileSignature, ChevronDown, Clock, MessageSquare, LayoutDashboard, Pencil, Sparkles } from "lucide-react"
 import { useDetailContext } from "@/lib/stores/context-store"
 import { fetchAccountData } from "@/lib/antelope/lookup"
 import { SidebarSearch } from "@/components/layout/sidebar-search"
+import { useWallet } from "@/lib/stores/wallet-store"
+import { QUICK_ACTIONS, isApplicable } from "@/lib/quick-actions/registry"
+import { dispatchQuickAction } from "@/lib/quick-actions/dispatch"
 
 const TOOL_ICONS: Record<string, React.ElementType> = {
   get_account: User,
@@ -117,10 +120,25 @@ export function LeftPanel() {
   const { chainInfo, chainName, endpoint, hyperionEndpoint, presets } = useChain()
   const { bookmarks, removeBookmark, updateBookmarkLabel } = useHistory()
   const { recentAccounts, clearRecents, setContext } = useDetailContext()
+  const { accountName: walletAccount } = useWallet()
   const [chainExpanded, setChainExpanded] = useState(false)
   const [rpcUp, setRpcUp] = useState(false)
   const [hyperionUp, setHyperionUp] = useState(false)
   const [liveInfo, setLiveInfo] = useState(chainInfo)
+
+  const visibleQuickActions = QUICK_ACTIONS.filter((a) => isApplicable(a, chainName))
+
+  const handleQuickAction = (actionId: string) => {
+    if (!walletAccount || !chainName) return
+    const action = QUICK_ACTIONS.find((a) => a.id === actionId)
+    if (!action) return
+    dispatchQuickAction(action, {
+      walletAccount,
+      chainName,
+      chainEndpoint: endpoint,
+      hyperionEndpoint,
+    }).catch(console.error)
+  }
 
   // Sync liveInfo when chainInfo changes (e.g. on connect/disconnect)
   useEffect(() => { setLiveInfo(chainInfo) }, [chainInfo])
@@ -263,6 +281,43 @@ export function LeftPanel() {
         {view === "chat" && (
         <>
         <Separator />
+
+        {/* Quick actions */}
+        {visibleQuickActions.length > 0 && (
+          <>
+            <div>
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Sparkles className="h-3 w-3" />
+                Quick actions
+              </h3>
+              {!walletAccount && (
+                <p className="text-xs text-muted-foreground mb-1.5">Connect wallet to enable</p>
+              )}
+              <div className="space-y-0">
+                {visibleQuickActions.map((action) => {
+                  const Icon = action.icon
+                  const disabled = !walletAccount
+                  return (
+                    <button
+                      key={action.id}
+                      disabled={disabled}
+                      onClick={() => handleQuickAction(action.id)}
+                      className={`flex items-center gap-1.5 text-xs text-left w-full py-0.5 transition-colors ${
+                        disabled
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:text-primary cursor-pointer"
+                      }`}
+                    >
+                      <Icon className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      <span className="truncate">{action.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <Separator />
+          </>
+        )}
 
         {/* Bookmarks */}
         <div>
