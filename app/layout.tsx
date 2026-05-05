@@ -35,7 +35,7 @@ export default function RootLayout({
           (function() {
             var t = localStorage.getItem('theme') || 'dim';
             if (t === 'dark') t = 'dim';
-            var all = ['dim','dusk'];
+            var all = ['dim','dusk','black-gold','orange-grey'];
             document.documentElement.classList.remove.apply(document.documentElement.classList, all);
             if (t !== 'light' && all.indexOf(t) !== -1) document.documentElement.classList.add(t);
             var p = new URLSearchParams(window.location.search);
