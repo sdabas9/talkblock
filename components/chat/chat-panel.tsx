@@ -165,6 +165,8 @@ export function ChatPanel() {
         }
       }
 
+      // quickAction: true is set by dispatchQuickAction (lib/quick-actions/dispatch.ts)
+      // to suppress the staleNote text part — it's only meaningful for real bookmarks.
       const isQuickAction = (bookmark as { quickAction?: boolean }).quickAction === true
 
       const now = new Date()

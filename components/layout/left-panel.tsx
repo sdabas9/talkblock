@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { usePanels } from "@/lib/stores/panel-store"
 import { useChain } from "@/lib/stores/chain-store"
 import { useHistory } from "@/lib/stores/history-store"
@@ -126,7 +126,10 @@ export function LeftPanel() {
   const [hyperionUp, setHyperionUp] = useState(false)
   const [liveInfo, setLiveInfo] = useState(chainInfo)
 
-  const visibleQuickActions = QUICK_ACTIONS.filter((a) => isApplicable(a, chainName))
+  const visibleQuickActions = useMemo(
+    () => QUICK_ACTIONS.filter((a) => isApplicable(a, chainName)),
+    [chainName],
+  )
 
   const handleQuickAction = (actionId: string) => {
     if (!walletAccount || !chainName) return
