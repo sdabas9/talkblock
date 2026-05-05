@@ -19,12 +19,26 @@ interface TokensCardProps {
   }
 }
 
-const PRIORITY_SYMBOLS = ["EOS", "A"]
+// Priority tokens shown at the top of the holdings list.
+// A is the Vaulta native token from core.vaulta — match strictly to avoid
+// promoting random tokens that re-use the "A" symbol from another contract.
+const PRIORITY: Array<{ symbol: string; contract?: string }> = [
+  { symbol: "EOS", contract: "eosio.token" },
+  { symbol: "A", contract: "core.vaulta" },
+]
+
+function priorityIndex(token: Token): number {
+  const sym = String(token.symbol || "")
+  const contract = String(token.contract || "")
+  return PRIORITY.findIndex(
+    (p) => p.symbol === sym && (!p.contract || p.contract === contract),
+  )
+}
 
 function sortByPriority(tokens: Token[]): Token[] {
   return [...tokens].sort((a, b) => {
-    const aIdx = PRIORITY_SYMBOLS.indexOf(String(a.symbol || ""))
-    const bIdx = PRIORITY_SYMBOLS.indexOf(String(b.symbol || ""))
+    const aIdx = priorityIndex(a)
+    const bIdx = priorityIndex(b)
     if (aIdx >= 0 && bIdx >= 0) return aIdx - bIdx
     if (aIdx >= 0) return -1
     if (bIdx >= 0) return 1
