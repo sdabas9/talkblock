@@ -151,8 +151,8 @@
   --sidebar-ring: oklch(0.52 0 0);
 }
 
-/* Black & Gold — luxe dark with warm gold accents */
-.black-gold {
+/* Gold — luxe dark with warm gold accents */
+.gold {
   --background: oklch(0.12 0 0);
   --foreground: oklch(0.95 0.005 90);
   --card: oklch(0.16 0 0);
@@ -186,8 +186,8 @@
   --sidebar-ring: oklch(0.7 0.15 90);
 }
 
-/* Orange & Grey — warm orange primary on neutral grey surfaces */
-.orange-grey {
+/* Orange — warm orange primary on neutral grey surfaces */
+.orange {
   --background: oklch(0.42 0 0);
   --foreground: oklch(0.96 0 0);
   --card: oklch(0.38 0 0);

@@ -35,7 +35,9 @@ export default function RootLayout({
           (function() {
             var t = localStorage.getItem('theme') || 'dim';
             if (t === 'dark') t = 'dim';
-            var all = ['dim','dusk','black-gold','orange-grey'];
+            var all = ['dim','dusk','gold','orange'];
+            var legacy = { 'black-gold': 'gold', 'orange-grey': 'orange' };
+            if (legacy[t]) { t = legacy[t]; localStorage.setItem('theme', t); }
             document.documentElement.classList.remove.apply(document.documentElement.classList, all);
             if (t !== 'light' && all.indexOf(t) !== -1) document.documentElement.classList.add(t);
             var p = new URLSearchParams(window.location.search);
