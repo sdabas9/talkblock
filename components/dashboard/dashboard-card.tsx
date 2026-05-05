@@ -12,6 +12,7 @@ import { TokensCard } from "@/components/chat/cards/tokens-card"
 import { useDashboard } from "@/lib/stores/dashboard-store"
 import { useHistory } from "@/lib/stores/history-store"
 import { useChain } from "@/lib/stores/chain-store"
+import { chainAccent } from "@/lib/dashboard/chain-accent"
 import { refetchToolData, REFRESHABLE_TOOLS, formatAge } from "@/lib/antelope/refetch"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -159,6 +160,9 @@ export function DashboardCard({ bookmark, onDragStart, onDragOver, onDrop }: Das
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const accent = chainAccent(bookmark.chain_name)
+  const headerGradient = `linear-gradient(to bottom, color-mix(in oklch, ${accent} 8%, transparent), transparent)`
+
   const displayLabel = customLabels[bookmark.id] || bookmark.label
   const canRefresh = REFRESHABLE_TOOLS.has(bookmark.tool_name) && !!bookmark.chain_endpoint
 
@@ -224,9 +228,13 @@ export function DashboardCard({ bookmark, onDragStart, onDragOver, onDrop }: Das
       onDragStart={(e) => onDragStart(e, bookmark.id)}
       onDragOver={onDragOver}
       onDrop={(e) => onDrop(e, bookmark.id)}
-      className="border rounded-lg bg-card shadow-sm overflow-hidden"
+      style={{ borderLeftColor: accent, borderLeftWidth: 2 }}
+      className="border border-border/60 rounded-xl bg-card shadow-sm overflow-hidden transition-all duration-200 ease-out hover:shadow-lg hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-2 duration-300"
     >
-      <div className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/50">
+      <div
+        className="flex items-center gap-1.5 px-4 py-2.5 border-b border-border/60 bg-gradient-to-b from-muted/40 to-muted/10"
+        style={{ backgroundImage: headerGradient }}
+      >
         <div className="cursor-grab active:cursor-grabbing text-muted-foreground">
           <GripVertical className="h-4 w-4" />
         </div>
