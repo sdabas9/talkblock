@@ -71,11 +71,21 @@ interface PaymentSession {
   transact: (args: any) => Promise<any>
 }
 
-export function PurchaseCreditsDialog({ trigger }: { trigger?: React.ReactNode }) {
+export function PurchaseCreditsDialog({
+  trigger,
+  open: controlledOpen,
+  onOpenChange,
+}: {
+  trigger?: React.ReactNode
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}) {
   const { session: appSession } = useWallet()
   const { refresh, appWalletAccount } = useCredits()
   const { chainInfo } = useChain()
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
+  const setOpen = onOpenChange ?? setInternalOpen
 
   // Selected payment chain + token
   const [paymentChainKey, setPaymentChainKey] = useState<"telos" | "vaulta">("telos")
@@ -247,16 +257,22 @@ export function PurchaseCreditsDialog({ trigger }: { trigger?: React.ReactNode }
     }, 200)
   }
 
+  // When the open state is controlled from outside (e.g., from the wallet
+  // dropdown), don't render a default trigger button — just the dialog.
+  const isControlled = controlledOpen !== undefined
+
   return (
     <Dialog open={open} onOpenChange={(v) => v ? setOpen(true) : handleClose()}>
-      <DialogTrigger asChild>
-        {trigger || (
-          <Button variant="outline" size="sm">
-            <Coins className="h-4 w-4 mr-2" />
-            Buy Credits
-          </Button>
-        )}
-      </DialogTrigger>
+      {!isControlled && (
+        <DialogTrigger asChild>
+          {trigger || (
+            <Button variant="outline" size="sm">
+              <Coins className="h-4 w-4 mr-2" />
+              Buy Credits
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Purchase Credits</DialogTitle>
