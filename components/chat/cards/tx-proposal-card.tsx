@@ -30,11 +30,12 @@ interface TxProposalCardProps {
 
 export function TxProposalCard({ data, onTxError, onActionsChange }: TxProposalCardProps) {
   const { session, transact } = useWallet()
-  const { chainName, endpoint, hyperionEndpoint } = useChain()
+  const { chainName, endpoint, hyperionEndpoint, chainInfo } = useChain()
   const { setContext } = useDetailContext()
   const [signing, setSigning] = useState(false)
   const [txResult, setTxResult] = useState<string | null>(null)
   const [txError, setTxError] = useState<string | null>(null)
+  const [sponsored, setSponsored] = useState(true)
   const [dismissed, setDismissed] = useState(false)
   const [copied, setCopied] = useState(false)
   const [showCleos, setShowCleos] = useState(false)
@@ -105,12 +106,75 @@ export function TxProposalCard({ data, onTxError, onActionsChange }: TxProposalC
   }).join(" && \\\n")
 
   const handleSign = async () => {
+    if (signing) return
     setSigning(true)
     setTxError(null)
     try {
-      const result = await transact(editableActions)
-      const txId = result?.response?.transaction_id || result?.transaction_id || "Success"
-      setTxResult(txId)
+      if (sponsored && session && chainInfo) {
+        const token = localStorage.getItem("auth_token")
+        const cosignRes = await fetch("/api/cosign", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            chainId: chainInfo.chain_id,
+            actions: editableActions.map((a) => ({
+              account: a.account,
+              name: a.name,
+              authorization: [{ actor: session.actor, permission: session.permission }],
+              data: a.data,
+            })),
+            expireSeconds: 300,
+          }),
+        })
+
+        if (cosignRes.status === 402) {
+          setTxError("Out of credits — sign without sponsor or buy more credits.")
+          setSigning(false)
+          return
+        }
+        if (!cosignRes.ok) {
+          const body = await cosignRes.json().catch(() => ({}))
+          throw new Error(body.error || `Cosign failed (${cosignRes.status})`)
+        }
+
+        const { packed_trx, signatures: cosignSigs, transaction } = await cosignRes.json()
+
+        // Ask the wallet to sign the same transaction. Anchor's session has signTransaction
+        // accessible through its underlying API; the typed wharfkit surface for direct-tx
+        // signing isn't fully exposed, so cast to any here.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sessionAny = session as any
+        const walletSigResult = await sessionAny.signTransaction(transaction)
+        const walletSig =
+          typeof walletSigResult === "string"
+            ? walletSigResult
+            : walletSigResult?.signatures?.[0] ?? walletSigResult?.[0]
+
+        const endpointUrl = endpoint || "https://eos.greymass.com"
+        const pushRes = await fetch(`${endpointUrl}/v1/chain/push_transaction`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            signatures: [...cosignSigs, walletSig],
+            packed_context_free_data: "",
+            packed_trx,
+          }),
+        })
+        const pushBody = await pushRes.json().catch(() => ({}))
+        if (!pushRes.ok) {
+          throw new Error(
+            pushBody.error?.what || pushBody.error?.details?.[0]?.message || `Push failed (${pushRes.status})`,
+          )
+        }
+        setTxResult(pushBody.transaction_id || "executed")
+      } else {
+        const result = await transact(editableActions)
+        const txId = result?.response?.transaction_id || result?.transaction_id || "Success"
+        setTxResult(txId)
+      }
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : "Transaction failed"
       // User closed the signing modal — not a real error
@@ -119,9 +183,7 @@ export function TxProposalCard({ data, onTxError, onActionsChange }: TxProposalC
         // Just reset signing state, don't show error
       } else {
         setTxError(errorMsg)
-        if (onTxError) {
-          onTxError(errorMsg, editableActions)
-        }
+        onTxError?.(errorMsg, editableActions)
       }
     } finally {
       setSigning(false)
@@ -268,6 +330,16 @@ export function TxProposalCard({ data, onTxError, onActionsChange }: TxProposalC
             </Button>
           </div>
         ) : (
+          <>
+            <label className="flex items-center gap-2 text-xs text-muted-foreground mb-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={sponsored}
+                onChange={(e) => setSponsored(e.target.checked)}
+                className="h-3 w-3 cursor-pointer"
+              />
+              Sponsor pays network fee (1 credit)
+            </label>
           <Button className="w-full" size="sm" onClick={handleSign} disabled={signing || !session}>
             {signing ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -276,6 +348,7 @@ export function TxProposalCard({ data, onTxError, onActionsChange }: TxProposalC
             )}
             {!session ? "Connect Wallet First" : signing ? "Signing..." : "Sign & Broadcast"}
           </Button>
+          </>
         )}
       </CardContent>
     </Card>
