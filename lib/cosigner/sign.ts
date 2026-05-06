@@ -83,7 +83,7 @@ export async function buildAndSignCosign(
   const packed = PackedTransaction.fromSigned(signed)
 
   return {
-    packed_trx: String(packed.packed_trx),
+    packed_trx: packed.packed_trx.hexString,
     signatures: [String(cosignSig)],
     transaction: Serializer.objectify(transaction) as Record<string, unknown>,
   }
