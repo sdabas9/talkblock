@@ -13,7 +13,7 @@ import { useCredits } from "@/lib/stores/credits-store"
 import { useChain } from "@/lib/stores/chain-store"
 
 const PRESET_AMOUNTS = [1, 5, 10]
-const TOKENS_PER_TLOS = 250000
+const CREDITS_PER_TLOS = 250
 const TELOS_CHAIN_ID = "4667b205c6838ef70ff7988f6e8257e8be0e1284a2f59699054a018f743b1d11"
 const TELOS_RPC_URL = "https://telos.greymass.com"
 
@@ -217,7 +217,7 @@ export function PurchaseCreditsDialog({ trigger }: { trigger?: React.ReactNode }
             <div>
               <p className="font-medium">Credits Added!</p>
               <p className="text-sm text-muted-foreground mt-1">
-                {tokensReceived.toLocaleString()} tokens credited to {targetAccount}.
+                {tokensReceived.toLocaleString()} credits added to {targetAccount}.
               </p>
             </div>
             <Button onClick={handleClose}>Done</Button>
@@ -287,12 +287,12 @@ export function PurchaseCreditsDialog({ trigger }: { trigger?: React.ReactNode }
                 <span className="font-medium">{effectiveAmount} TLOS</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Tokens received</span>
-                <span className="font-medium">{(effectiveAmount * TOKENS_PER_TLOS).toLocaleString()} tokens</span>
+                <span className="text-muted-foreground">Credits received</span>
+                <span className="font-medium">{(effectiveAmount * CREDITS_PER_TLOS).toLocaleString()} credits</span>
               </div>
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Rate</span>
-                <span>1 TLOS = {TOKENS_PER_TLOS.toLocaleString()} tokens</span>
+                <span>1 TLOS = {CREDITS_PER_TLOS.toLocaleString()} credits</span>
               </div>
             </div>
 

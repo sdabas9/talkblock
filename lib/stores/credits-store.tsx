@@ -38,7 +38,7 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
   const [balanceTokens, setBalanceTokens] = useState(0)
   const [totalDepositedTlos, setTotalDepositedTlos] = useState(0)
   const [todayRequestCount, setTodayRequestCount] = useState(0)
-  const [freeRemaining, setFreeRemaining] = useState(5)
+  const [freeRemaining, setFreeRemaining] = useState(6)
   const [todayInputTokens, setTodayInputTokens] = useState(0)
   const [todayOutputTokens, setTodayOutputTokens] = useState(0)
   const [recentTransactions, setRecentTransactions] = useState<CreditTransaction[]>([])

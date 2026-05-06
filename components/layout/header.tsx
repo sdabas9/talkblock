@@ -53,9 +53,9 @@ function UsageIndicator() {
   return (
     <span className="text-xs text-muted-foreground hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded bg-muted">
       {freeRemaining > 0 ? (
-        <>{freeRemaining} free left</>
+        <>{freeRemaining} free credits</>
       ) : balanceTokens > 0 ? (
-        <>{Math.round(balanceTokens / 1000)}k tokens</>
+        <>{balanceTokens} credits</>
       ) : (
         <span className="text-yellow-600 dark:text-yellow-400">No credits</span>
       )}
