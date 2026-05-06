@@ -41,7 +41,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
           data: {
             from: ctx.walletAccount,
             to: "quickpowerup",
-            quantity: "",
+            quantity: "0.0100 A",
             memo: `${ctx.walletAccount} 98`,
           },
         },
