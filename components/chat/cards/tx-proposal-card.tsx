@@ -238,7 +238,7 @@ export function TxProposalCard({ data, onTxError, onActionsChange }: TxProposalC
   }
 
   return (
-    <Card className="my-2 max-w-md border-primary/50">
+    <Card className="my-2 w-full max-w-xl border-primary/50">
       <CardHeader className="pb-2 pt-3 px-4">
         <CardTitle className="text-sm flex items-center gap-2">
           <FileSignature className="h-4 w-4" />
