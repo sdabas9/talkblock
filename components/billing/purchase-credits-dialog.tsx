@@ -11,6 +11,7 @@ import { Loader2, Check, AlertCircle, Coins, Wallet } from "lucide-react"
 import { useWallet } from "@/lib/stores/wallet-store"
 import { useCredits } from "@/lib/stores/credits-store"
 import { useChain } from "@/lib/stores/chain-store"
+import { useAuth } from "@/lib/stores/auth-store"
 
 const PRESET_AMOUNTS = [1, 5, 10]
 
@@ -83,6 +84,7 @@ export function PurchaseCreditsDialog({
   const { session: appSession } = useWallet()
   const { refresh, appWalletAccount } = useCredits()
   const { chainInfo } = useChain()
+  const { user } = useAuth()
   const [internalOpen, setInternalOpen] = useState(false)
   const open = controlledOpen ?? internalOpen
   const setOpen = onOpenChange ?? setInternalOpen
@@ -113,6 +115,18 @@ export function PurchaseCreditsDialog({
   const isAppOnPaymentChain = chainInfo?.chain_id === paymentChain.chainId
   const activePaymentSession = isAppOnPaymentChain && appSession ? appSession : paymentSession
   const paymentActor = activePaymentSession?.actor ? String(activePaymentSession.actor) : null
+
+  // Sponsor pays toggle — only meaningful on Vaulta and only if the authed
+  // user is also Vaulta-resident (cosigner deducts credits from their profile,
+  // and /api/cosign requires profile.chain_id === request.chainId).
+  const sponsorEligible =
+    paymentChainKey === "vaulta" &&
+    !!user &&
+    user.chainId === paymentChain.chainId
+  const [sponsored, setSponsored] = useState(false)
+  useEffect(() => {
+    setSponsored(sponsorEligible)
+  }, [sponsorEligible])
 
   // When user changes payment chain, reset the cached wallet kit (different chain id)
   useEffect(() => {
@@ -228,7 +242,7 @@ export function PurchaseCreditsDialog({
         ? String(appSession.permission)
         : String((activePaymentSession as PaymentSession).permission)
 
-      const actions = [{
+      const transferAction = {
         account: paymentToken.contract,
         name: "transfer",
         authorization: [{ actor, permission }],
@@ -238,11 +252,90 @@ export function PurchaseCreditsDialog({
           quantity: `${effectiveAmount.toFixed(4)} ${paymentToken.symbol}`,
           memo: `talkblock-credit:${targetChainId}:${targetAccount}`,
         },
-      }]
+      }
 
-      const result = await activePaymentSession.transact({ actions })
+      let txId: string | undefined
 
-      const txId = result?.resolved?.transaction?.id || result?.transaction?.id || result?.response?.transaction_id
+      if (sponsored && sponsorEligible) {
+        // Cosigned path — talkblockpay covers CPU/NET. Costs 1 credit from
+        // the authed user's balance. Mirrors the tx-proposal-card flow.
+        const authToken = localStorage.getItem("auth_token")
+        const tplRes = await fetch("/api/cosign", {
+          method: "GET",
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+        })
+        if (!tplRes.ok) {
+          const body = await tplRes.json().catch(() => ({}))
+          throw new Error(body.error || `Cosign template fetch failed (${tplRes.status})`)
+        }
+        const { noop } = await tplRes.json()
+
+        const fullActions = [noop, transferAction]
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const walletResult: any = await activePaymentSession.transact(
+          { actions: fullActions },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          { broadcast: false, expireSeconds: 300 } as any,
+        )
+        const walletSig = String(walletResult?.signatures?.[0])
+        const resolvedTx =
+          walletResult?.resolved?.transaction ?? walletResult?.transaction
+        if (!resolvedTx) throw new Error("Wallet did not return a resolved transaction")
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { PackedTransaction, SignedTransaction, Transaction } = await import("@wharfkit/antelope") as any
+        const packedTx = PackedTransaction.fromSigned(
+          SignedTransaction.from({
+            ...Transaction.from(resolvedTx),
+            signatures: [walletSig],
+          }),
+          0,
+        )
+        const packedTrxHex: string = packedTx.packed_trx.hexString
+
+        const cosignRes = await fetch("/api/cosign", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+          },
+          body: JSON.stringify({
+            chainId: paymentChain.chainId,
+            packed_trx: packedTrxHex,
+          }),
+        })
+        if (cosignRes.status === 402) {
+          throw new Error("Out of credits — uncheck Sponsor pays to pay your own CPU/NET.")
+        }
+        if (!cosignRes.ok) {
+          const body = await cosignRes.json().catch(() => ({}))
+          throw new Error(body.error || `Cosign failed (${cosignRes.status})`)
+        }
+        const { signature: cosignSig } = await cosignRes.json()
+
+        const pushRes = await fetch(`${paymentChain.rpcUrl}/v1/chain/push_transaction`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            signatures: [cosignSig, walletSig],
+            compression: 0,
+            packed_context_free_data: "",
+            packed_trx: packedTrxHex,
+          }),
+        })
+        const pushBody = await pushRes.json().catch(() => ({}))
+        if (!pushRes.ok) {
+          throw new Error(
+            pushBody.error?.what || pushBody.error?.details?.[0]?.message || `Push failed (${pushRes.status})`,
+          )
+        }
+        txId = pushBody.transaction_id
+      } else {
+        // Self-paid path
+        const result = await activePaymentSession.transact({ actions: [transferAction] })
+        txId = result?.resolved?.transaction?.id || result?.transaction?.id || result?.response?.transaction_id
+      }
+
       if (!txId) {
         throw new Error("Could not get transaction ID from wallet response")
       }
@@ -448,6 +541,18 @@ export function PurchaseCreditsDialog({
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>{error}</span>
               </div>
+            )}
+
+            {sponsorEligible && (
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sponsored}
+                  onChange={(e) => setSponsored(e.target.checked)}
+                  className="h-3 w-3 cursor-pointer"
+                />
+                Sponsor pays network fee (1 credit)
+              </label>
             )}
 
             {/* Payment section */}
