@@ -35,7 +35,13 @@ export function TxProposalCard({ data, onTxError, onActionsChange }: TxProposalC
   const [signing, setSigning] = useState(false)
   const [txResult, setTxResult] = useState<string | null>(null)
   const [txError, setTxError] = useState<string | null>(null)
-  const [sponsored, setSponsored] = useState(true)
+  // Sponsor pays only works on Vaulta. Default the toggle ON only when on Vaulta.
+  const VAULTA_CHAIN_ID = "aca376f206b8fc25a6ed44dbdc66547c36c6c33e3a119ffbeaef943642f0e906"
+  const isVaulta = chainInfo?.chain_id === VAULTA_CHAIN_ID
+  const [sponsored, setSponsored] = useState(false)
+  useEffect(() => {
+    setSponsored(isVaulta)
+  }, [isVaulta])
   const [dismissed, setDismissed] = useState(false)
   const [copied, setCopied] = useState(false)
   const [showCleos, setShowCleos] = useState(false)
@@ -142,12 +148,9 @@ export function TxProposalCard({ data, onTxError, onActionsChange }: TxProposalC
 
         const { packed_trx, signatures: cosignSigs, transaction } = await cosignRes.json()
 
-        // Ask the wallet to sign the same transaction. Anchor's session has signTransaction
-        // accessible through its underlying API; the typed wharfkit surface for direct-tx
-        // signing isn't fully exposed, so cast to any here.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const sessionAny = session as any
-        const walletSigResult = await sessionAny.signTransaction(transaction)
+        // signTransaction is exposed by the wallet store wrapper; it delegates to
+        // the underlying wharfkit Session.
+        const walletSigResult = await session.signTransaction(transaction)
         const walletSig =
           typeof walletSigResult === "string"
             ? walletSigResult
@@ -331,15 +334,17 @@ export function TxProposalCard({ data, onTxError, onActionsChange }: TxProposalC
           </div>
         ) : (
           <>
-            <label className="flex items-center gap-2 text-xs text-muted-foreground mb-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={sponsored}
-                onChange={(e) => setSponsored(e.target.checked)}
-                className="h-3 w-3 cursor-pointer"
-              />
-              Sponsor pays network fee (1 credit)
-            </label>
+            {isVaulta && (
+              <label className="flex items-center gap-2 text-xs text-muted-foreground mb-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sponsored}
+                  onChange={(e) => setSponsored(e.target.checked)}
+                  className="h-3 w-3 cursor-pointer"
+                />
+                Sponsor pays network fee (1 credit)
+              </label>
+            )}
           <Button className="w-full" size="sm" onClick={handleSign} disabled={signing || !session}>
             {signing ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
