@@ -47,7 +47,7 @@ Body:
   {
     "chainId": "aca376f206b8fc25...",
     "actions": TxAction[],                // user's intended actions
-    "expireSeconds": 30                   // optional, default 30
+    "expireSeconds": 300                  // optional, default 300 (5 min)
   }
 
 Response (200):
@@ -75,7 +75,7 @@ Error responses:
    - All actions must be on Vaulta-resident contracts.
    - No action may target `pay.talkblock` (prevents the user from making us cosign a tx that operates on our own sponsor account).
 5. Prepend a noop action: `{ account: "noop.talkblock", name: "noop", authorization: [{ actor: "pay.talkblock", permission: "cosign" }], data: { memo: "<userId>:<timestamp>" } }`.
-6. Construct the transaction (using `@wharfkit/session` server-side or raw Antelope ABI serialization). Set `expiration = now + expireSeconds`. Use TAPOS from a server-cached `get_info` (refresh every 30s).
+6. Construct the transaction (using `@wharfkit/session` server-side or raw Antelope ABI serialization). Set `expiration = now + expireSeconds` (default 300 — 5 minutes — which is well within Antelope's 1h `max_transaction_lifetime` and gives the user comfortable time to sign without making expired-cosign abuse cheap). Use TAPOS from a server-cached `get_info` (refresh every 30s).
 7. Sign with `COSIGN_PRIVATE_KEY` (from Vercel env).
 8. Record usage: `recordUsage(chainId, walletAccount, mode, /*credits*/ 1, /*kind*/ "cosign")` (extended signature; see below).
 9. Return packed tx + signature.
@@ -136,7 +136,7 @@ Run via the Supabase Management API SQL endpoint as a single statement at deploy
 
 ## Edge cases
 
-- **Tx expires before user signs** — server uses 30s expire. If user takes longer, signature is wasted (we already deducted the credit). UX: refund the credit if the broadcast returns "expired"? Out of scope for v1; expect rare and accept the 1-credit loss as edge cost.
+- **Tx expires before user signs** — server sets 5-minute expiration; the vast majority of users sign within seconds. If a user genuinely walks away for 5+ minutes, the cosign signature becomes useless and the broadcast fails with "expired transaction." Credit was already deducted at cosign-issue time and is NOT refunded — accepted v1 cost. We deduct upfront (rather than on broadcast success) to prevent the obvious abuse: a malicious user requesting unlimited cosignatures and never broadcasting any of them.
 - **User has BYOK but no credits** — cosign refuses with 402, user falls back to self-paid via the "Try unsponsored" button.
 - **`pay.talkblock` runs out of CPU** — cosign would still sign successfully but the broadcast fails with billable_cpu_time_us exceeded. Endpoint should pre-check `pay.talkblock`'s available CPU via cached `get_account` and refuse with 503 if insufficient. Add stake-low alerting via the existing keepalive workflow.
 - **Replay of cosigned tx** — Antelope tx signatures embed `expiration` and `ref_block_num`; expired or replayed txns are rejected by nodes. Each cosign signature is single-use.
