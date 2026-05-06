@@ -118,15 +118,15 @@ ${walletAccount ? `The user's connected wallet account is: ${walletAccount}. Whe
   }
 
   const makeOnFinish = (modelUsed: string) =>
-    async ({ usage }: { usage: { inputTokens?: number; outputTokens?: number } }) => {
+    async (_args: { usage: { inputTokens?: number; outputTokens?: number } }) => {
       if (bodyChainId && walletAccount && billingMode !== "byok") {
         await recordUsage(
           bodyChainId,
           walletAccount,
           billingMode as "free" | "paid",
-          usage.inputTokens ?? 0,
-          usage.outputTokens ?? 0,
-          modelUsed
+          1,            // 1 credit per chat message regardless of token count
+          "chat",
+          modelUsed,
         )
       }
     }
