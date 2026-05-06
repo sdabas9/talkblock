@@ -1,6 +1,7 @@
 import {
   APIClient,
   Action,
+  PackedTransaction,
   PrivateKey,
   Serializer,
   SignedTransaction,
@@ -72,14 +73,17 @@ export async function buildAndSignCosign(
   const cosignKey = PrivateKey.from(cosignPrivateKey)
   const cosignSig = cosignKey.signDigest(transaction.signingDigest(info.chain_id))
 
-  // Construct a SignedTransaction to validate the sig is well-formed
-  void SignedTransaction.from({
+  const signed = SignedTransaction.from({
     ...transaction,
     signatures: [cosignSig],
   })
 
+  // Use PackedTransaction.fromSigned to produce the canonical packed bytes —
+  // this is the same encoding the chain expects in /v1/chain/push_transaction.
+  const packed = PackedTransaction.fromSigned(signed)
+
   return {
-    packed_trx: Serializer.encode({ object: transaction }).hexString,
+    packed_trx: String(packed.packed_trx),
     signatures: [String(cosignSig)],
     transaction: Serializer.objectify(transaction) as Record<string, unknown>,
   }
