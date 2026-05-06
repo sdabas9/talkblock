@@ -1,0 +1,30 @@
+name: Cosigner topup
+
+# Top up talkblockpay's CPU/NET via the quickpowerup contract on Vaulta
+# whenever its CPU or NET hits 98%+ used. talkblockpay self-funds (5 A
+# treasury seeded from rep). Each topup transfers 0.05 A to quickpowerup
+# with memo "talkblockpay 98" — quickpowerup splits 98% to CPU / 2% to
+# NET and dispatches an inline core.vaulta::powerup paid by itself.
+#
+# Requires repo secret TOPUP_PRIVATE_KEY (talkblockpay@topup, linkauth-
+# restricted to core.vaulta::transfer).
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # every 5 minutes
+  workflow_dispatch:
+
+jobs:
+  topup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install minimal deps
+        run: npm install --no-save --no-audit --no-fund @wharfkit/antelope
+      - name: Run topup check
+        env:
+          TOPUP_PRIVATE_KEY: ${{ secrets.TOPUP_PRIVATE_KEY }}
+        run: node scripts/cosigner-topup.mjs
