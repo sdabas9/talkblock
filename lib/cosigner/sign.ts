@@ -1,32 +1,38 @@
 import {
   APIClient,
-  Action,
+  Bytes,
+  Checksum256,
   PackedTransaction,
   PrivateKey,
   Serializer,
-  SignedTransaction,
   Transaction,
 } from "@wharfkit/antelope"
 
-export interface ActionInput {
-  account: string
-  name: string
-  authorization: { actor: string; permission: string }[]
-  data: Record<string, unknown>
+export interface CosignNoopMeta {
+  account: string       // contract on which noop lives
+  name: string          // "noop"
+  actor: string         // cosignAccount
+  permission: string    // cosignPermission
 }
 
-export interface CosignedTx {
-  packed_trx: string
-  signatures: string[]
-  transaction: Record<string, unknown>
+export interface CosignResult {
+  signature: string
+  noop: CosignNoopMeta
 }
 
 const VAULTA_RPC = "https://eos.greymass.com"
 
-export async function buildAndSignCosign(
-  userActions: ActionInput[],
-  expireSeconds: number = 300,
-): Promise<CosignedTx> {
+/**
+ * Sign the digest of a client-built transaction with the cosign key, after
+ * verifying the transaction's first action is the expected noop authorized by
+ * the cosign permission. The client owns the canonical packed_trx; the server's
+ * only job here is to add a second signature over the same bytes the user's
+ * wallet already signed. This avoids any cross-environment serialization risk.
+ */
+export async function cosignClientTx(
+  packedTrxHex: string,
+  chainId: string,
+): Promise<CosignResult> {
   const cosignAccount = process.env.COSIGN_ACCOUNT
   const cosignPermission = process.env.COSIGN_PERMISSION
   const noopContract = process.env.NOOP_CONTRACT
@@ -36,57 +42,73 @@ export async function buildAndSignCosign(
     throw new Error("Cosigner not configured (missing env vars)")
   }
 
-  const client = new APIClient({ url: VAULTA_RPC })
-  const info = await client.v1.chain.get_info()
-  const header = info.getTransactionHeader(expireSeconds)
-
-  const noopAction: ActionInput = {
-    account: noopContract,
-    name: "noop",
-    authorization: [{ actor: cosignAccount, permission: cosignPermission }],
-    data: { memo: `tlbk-${Date.now()}` },
+  // Decode the client-supplied packed_trx
+  let transaction: Transaction
+  try {
+    const packed = PackedTransaction.from({
+      signatures: [],
+      compression: 0,
+      packed_context_free_data: "",
+      packed_trx: packedTrxHex,
+    })
+    transaction = packed.getTransaction()
+  } catch (e) {
+    throw new Error(`Invalid packed_trx: ${e instanceof Error ? e.message : String(e)}`)
   }
 
-  const allActions = [noopAction, ...userActions]
+  // Validate the first action is our authorized noop
+  const first = transaction.actions[0]
+  if (!first) throw new Error("Empty actions")
+  if (String(first.account) !== noopContract) {
+    throw new Error(`First action must target ${noopContract}, got ${first.account}`)
+  }
+  if (String(first.name) !== "noop") {
+    throw new Error(`First action must be 'noop', got ${first.name}`)
+  }
+  const auth = first.authorization?.[0]
+  if (!auth || String(auth.actor) !== cosignAccount || String(auth.permission) !== cosignPermission) {
+    throw new Error(
+      `First action authorization must be ${cosignAccount}@${cosignPermission}`,
+    )
+  }
 
-  const actions = await Promise.all(
-    allActions.map(async (a) => {
-      const abi = await client.v1.chain.get_abi(a.account)
-      if (!abi.abi) throw new Error(`No ABI for ${a.account}`)
-      return Action.from(
-        {
-          account: a.account,
-          name: a.name,
-          authorization: a.authorization,
-          data: a.data,
-        },
-        abi.abi,
-      )
-    }),
-  )
+  // Reject if any other action in the tx targets the cosign account itself
+  // (defense: the cosign permission is linkauth-restricted to noop only, so
+  // even on key compromise an attacker can't move funds; this is belt-and-braces).
+  for (let i = 1; i < transaction.actions.length; i++) {
+    const a = transaction.actions[i]
+    if (String(a.account) === cosignAccount) {
+      throw new Error("Actions cannot target the sponsor account")
+    }
+  }
 
-  const transaction = Transaction.from({
-    ...header,
-    actions,
-  })
+  // Verify chainId is a real Checksum256 (catches obvious tampering)
+  const cid = Checksum256.from(chainId)
 
+  // Sign the digest of the EXACT bytes the user's wallet signed
   const cosignKey = PrivateKey.from(cosignPrivateKey)
-  const cosignSig = cosignKey.signDigest(transaction.signingDigest(info.chain_id))
+  const cosignSig = cosignKey.signDigest(transaction.signingDigest(cid))
 
-  const signed = SignedTransaction.from({
-    ...transaction,
-    signatures: [cosignSig],
-  })
-
-  // Use PackedTransaction.fromSigned with compression=0 (none). The default
-  // compression in wharfkit is 1 (zlib), but our /v1/chain/push_transaction
-  // call doesn't set a compression flag and the chain assumes none, so passing
-  // zlib bytes there gets rejected as "Invalid packed transaction".
-  const packed = PackedTransaction.fromSigned(signed, 0)
+  // Verify the signature roundtrips to a valid string (sanity check)
+  const sigStr = String(cosignSig)
+  if (!sigStr.startsWith("SIG_")) {
+    throw new Error("Cosign signature not in expected SIG_K1_... format")
+  }
 
   return {
-    packed_trx: packed.packed_trx.hexString,
-    signatures: [String(cosignSig)],
-    transaction: Serializer.objectify(transaction) as Record<string, unknown>,
+    signature: sigStr,
+    noop: { account: noopContract, name: "noop", actor: cosignAccount, permission: cosignPermission },
   }
 }
+
+// Fetch chain info — used by /api/cosign to surface TAPOS the client can use.
+// Kept here so the API route doesn't import wharfkit directly.
+export async function fetchVaultaInfo() {
+  const client = new APIClient({ url: VAULTA_RPC })
+  const info = await client.v1.chain.get_info()
+  return info
+}
+
+// Used by tests / probe scripts only.
+export { Bytes, Serializer }
+

@@ -118,6 +118,55 @@ export function TxProposalCard({ data, onTxError, onActionsChange }: TxProposalC
     try {
       if (sponsored && session && chainInfo) {
         const token = localStorage.getItem("auth_token")
+
+        // Step 1: GET the noop template + chain info from the server
+        const tplRes = await fetch("/api/cosign", {
+          method: "GET",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+        if (!tplRes.ok) {
+          const body = await tplRes.json().catch(() => ({}))
+          throw new Error(body.error || `Cosign template fetch failed (${tplRes.status})`)
+        }
+        const { noop } = await tplRes.json()
+
+        // Step 2: Have wharfkit build + sign the FULL action list (noop + user actions)
+        // with broadcast:false so we get the canonical packed_trx back. wharfkit owns
+        // serialization end-to-end so the user signature is guaranteed to validate.
+        const fullActions = [
+          noop,
+          ...editableActions.map((a) => ({
+            account: a.account,
+            name: a.name,
+            authorization: [{ actor: session.actor, permission: session.permission }],
+            data: a.data,
+          })),
+        ]
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const walletResult: any = await session.transact(
+          { actions: fullActions },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          { broadcast: false, expireSeconds: 300 } as any,
+        )
+
+        const walletSig = String(walletResult?.signatures?.[0])
+        // Get the canonical packed bytes from wharfkit's resolved tx
+        const resolvedTx =
+          walletResult?.resolved?.transaction ?? walletResult?.transaction
+        if (!resolvedTx) throw new Error("Wallet did not return a resolved transaction")
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { PackedTransaction, SignedTransaction, Transaction } = await import("@wharfkit/antelope") as any
+        const packedTx = PackedTransaction.fromSigned(
+          SignedTransaction.from({
+            ...Transaction.from(resolvedTx),
+            signatures: [walletSig],
+          }),
+          0,
+        )
+        const packedTrxHex: string = packedTx.packed_trx.hexString
+
+        // Step 3: POST the packed_trx to the server for the cosign signature
         const cosignRes = await fetch("/api/cosign", {
           method: "POST",
           headers: {
@@ -126,13 +175,7 @@ export function TxProposalCard({ data, onTxError, onActionsChange }: TxProposalC
           },
           body: JSON.stringify({
             chainId: chainInfo.chain_id,
-            actions: editableActions.map((a) => ({
-              account: a.account,
-              name: a.name,
-              authorization: [{ actor: session.actor, permission: session.permission }],
-              data: a.data,
-            })),
-            expireSeconds: 300,
+            packed_trx: packedTrxHex,
           }),
         })
 
@@ -145,29 +188,18 @@ export function TxProposalCard({ data, onTxError, onActionsChange }: TxProposalC
           const body = await cosignRes.json().catch(() => ({}))
           throw new Error(body.error || `Cosign failed (${cosignRes.status})`)
         }
+        const { signature: cosignSig } = await cosignRes.json()
 
-        const { packed_trx, signatures: cosignSigs, transaction } = await cosignRes.json()
-
-        // Have the wallet sign the SAME transaction object the server signed.
-        // broadcast:false returns the signatures without sending; allowModify:false
-        // ensures the wallet doesn't rebuild the tx (which would invalidate the
-        // cosign signature against a different digest).
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const walletResult: any = await session.transact(
-          { transaction },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          { broadcast: false, allowModify: false } as any,
-        )
-        const walletSig = String(walletResult?.signatures?.[0])
-
+        // Step 4: Push to chain with both signatures over the same packed_trx
         const endpointUrl = endpoint || "https://eos.greymass.com"
         const pushRes = await fetch(`${endpointUrl}/v1/chain/push_transaction`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            signatures: [...cosignSigs, walletSig],
+            signatures: [cosignSig, walletSig],
+            compression: 0,
             packed_context_free_data: "",
-            packed_trx,
+            packed_trx: packedTrxHex,
           }),
         })
         const pushBody = await pushRes.json().catch(() => ({}))
