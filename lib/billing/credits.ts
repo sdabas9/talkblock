@@ -133,11 +133,23 @@ export async function recordUsage(
   }
 }
 
+/**
+ * Apply a deposit. Symbol-agnostic: caller computes the credits count from
+ * the deposited amount and the per-symbol rate (see app_config.credits_per_*).
+ *
+ * `paymentAmount` is the raw token amount (e.g. 1.0 for "1.0000 A") — stored
+ * in credit_transactions.tlos_amount for audit (the column name is legacy from
+ * the TLOS-only era; values are now per-symbol). `paymentSymbol` is the token
+ * ticker (TLOS, A, EOS) — stored in credit_transactions.model so `credits` row
+ * displays show what was paid.
+ */
 export async function creditDeposit(
   chainId: string,
   accountName: string,
-  tlosAmount: number,
-  txHash: string
+  credits: number,
+  txHash: string,
+  paymentAmount: number,
+  paymentSymbol: string,
 ): Promise<{ newBalance: number }> {
   if (!isSupabaseConfigured()) {
     throw new Error("Supabase not configured. Credit deposits are unavailable.")
@@ -145,7 +157,6 @@ export async function creditDeposit(
 
   const supabase = createAdminClient()!
 
-  // Check for duplicate tx_hash
   const { data: existingTx } = await supabase
     .from("credit_transactions")
     .select("id")
@@ -156,9 +167,6 @@ export async function creditDeposit(
     throw new Error("Transaction already processed")
   }
 
-  const tokenUnits = Math.floor(tlosAmount * CREDITS_PER_TLOS)
-
-  // Upsert credit_balances
   const { data: existing } = await supabase
     .from("credit_balances")
     .select("balance_tokens, total_deposited_tlos")
@@ -169,35 +177,35 @@ export async function creditDeposit(
   let newBalance: number
 
   if (existing) {
-    newBalance = (existing.balance_tokens ?? 0) + tokenUnits
+    newBalance = (existing.balance_tokens ?? 0) + credits
     await supabase
       .from("credit_balances")
       .update({
         balance_tokens: newBalance,
-        total_deposited_tlos: (existing.total_deposited_tlos ?? 0) + tlosAmount,
+        total_deposited_tlos: (existing.total_deposited_tlos ?? 0) + paymentAmount,
         updated_at: new Date().toISOString(),
       })
       .eq("chain_id", chainId)
       .eq("account_name", accountName)
   } else {
-    newBalance = tokenUnits
+    newBalance = credits
     await supabase.from("credit_balances").insert({
       chain_id: chainId,
       account_name: accountName,
       balance_tokens: newBalance,
-      total_deposited_tlos: tlosAmount,
+      total_deposited_tlos: paymentAmount,
     })
   }
 
-  // Insert transaction record
   await supabase.from("credit_transactions").insert({
     chain_id: chainId,
     account_name: accountName,
     type: "deposit",
-    tlos_amount: tlosAmount,
+    tlos_amount: paymentAmount,
     tx_hash: txHash,
-    token_units_delta: tokenUnits,
+    token_units_delta: credits,
     balance_after: newBalance,
+    model: paymentSymbol,
   })
 
   return { newBalance }

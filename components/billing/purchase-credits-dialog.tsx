@@ -13,12 +13,48 @@ import { useCredits } from "@/lib/stores/credits-store"
 import { useChain } from "@/lib/stores/chain-store"
 
 const PRESET_AMOUNTS = [1, 5, 10]
-const CREDITS_PER_TLOS = 250
+
 const TELOS_CHAIN_ID = "4667b205c6838ef70ff7988f6e8257e8be0e1284a2f59699054a018f743b1d11"
-const TELOS_RPC_URL = "https://telos.greymass.com"
+const VAULTA_CHAIN_ID = "aca376f206b8fc25a6ed44dbdc66547c36c6c33e3a119ffbeaef943642f0e906"
+
+interface PaymentTokenOption {
+  symbol: string
+  contract: string
+  // Display rate (must match app_config.credits_per_<symbol> server-side; the
+  // server's value is authoritative for crediting, this is just for the receipt UI).
+  creditsPerUnit: number
+}
+
+interface PaymentChainOption {
+  key: "telos" | "vaulta"
+  label: string
+  chainId: string
+  rpcUrl: string
+  tokens: PaymentTokenOption[]
+}
+
+const PAYMENT_CHAINS: PaymentChainOption[] = [
+  {
+    key: "telos",
+    label: "Telos",
+    chainId: TELOS_CHAIN_ID,
+    rpcUrl: "https://telos.greymass.com",
+    tokens: [{ symbol: "TLOS", contract: "eosio.token", creditsPerUnit: 50 }],
+  },
+  {
+    key: "vaulta",
+    label: "Vaulta",
+    chainId: VAULTA_CHAIN_ID,
+    rpcUrl: "https://eos.greymass.com",
+    tokens: [
+      { symbol: "A", contract: "core.vaulta", creditsPerUnit: 250 },
+      { symbol: "EOS", contract: "eosio.token", creditsPerUnit: 250 },
+    ],
+  },
+]
 
 const KNOWN_CHAINS: { label: string; chainId: string }[] = [
-  { label: "EOS Mainnet", chainId: "aca376f206b8fc25a6ed44dbdc66547c36c6c33e3a119ffbeaef943642f0e906" },
+  { label: "EOS Mainnet", chainId: VAULTA_CHAIN_ID },
   { label: "Jungle4 Testnet", chainId: "73e4385a2708e6d7048834fbc1079f2fabb17b3c125b146af438971e90716c4d" },
   { label: "WAX Mainnet", chainId: "1064487b3cd1a897ce03ae5b6a865651747e2e152090f99c1d19d44e01aea5a4" },
   { label: "Telos Mainnet", chainId: TELOS_CHAIN_ID },
@@ -28,7 +64,7 @@ const KNOWN_CHAINS: { label: string; chainId: string }[] = [
 
 type PurchaseState = "idle" | "signing" | "verifying" | "success" | "error"
 
-interface TelosSession {
+interface PaymentSession {
   actor: string
   permission: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -40,62 +76,82 @@ export function PurchaseCreditsDialog({ trigger }: { trigger?: React.ReactNode }
   const { refresh, appWalletAccount } = useCredits()
   const { chainInfo } = useChain()
   const [open, setOpen] = useState(false)
+
+  // Selected payment chain + token
+  const [paymentChainKey, setPaymentChainKey] = useState<"telos" | "vaulta">("telos")
+  const paymentChain = PAYMENT_CHAINS.find((c) => c.key === paymentChainKey)!
+  const [paymentSymbol, setPaymentSymbol] = useState<string>(paymentChain.tokens[0].symbol)
+  const paymentToken = paymentChain.tokens.find((t) => t.symbol === paymentSymbol) ?? paymentChain.tokens[0]
+
   const [amount, setAmount] = useState<number>(1)
   const [customAmount, setCustomAmount] = useState("")
   const [state, setState] = useState<PurchaseState>("idle")
   const [error, setError] = useState("")
-  const [tokensReceived, setTokensReceived] = useState(0)
+  const [creditsCredited, setCreditsCredited] = useState(0)
 
   // Target chain+account for the credits
   const [targetChainId, setTargetChainId] = useState("")
   const [targetAccount, setTargetAccount] = useState("")
 
-  // Standalone Telos wallet for payment (independent of app chain)
-  const [telosSession, setTelosSession] = useState<TelosSession | null>(null)
-  const [telosConnecting, setTelosConnecting] = useState(false)
+  // Standalone payment-chain wallet (independent of app chain)
+  const [paymentSession, setPaymentSession] = useState<PaymentSession | null>(null)
+  const [paymentConnecting, setPaymentConnecting] = useState(false)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const telosKitRef = useRef<any>(null)
+  const paymentKitRef = useRef<{ kit: any; chainKey: string } | null>(null)
 
-  // If the app is already on Telos with a wallet, use that session
-  const isAppOnTelos = chainInfo?.chain_id === TELOS_CHAIN_ID
-  const activeTelosSession = isAppOnTelos && appSession ? appSession : telosSession
-  const telosActor = activeTelosSession?.actor ? String(activeTelosSession.actor) : null
+  // If the app is already on the selected payment chain with a wallet, reuse that session
+  const isAppOnPaymentChain = chainInfo?.chain_id === paymentChain.chainId
+  const activePaymentSession = isAppOnPaymentChain && appSession ? appSession : paymentSession
+  const paymentActor = activePaymentSession?.actor ? String(activePaymentSession.actor) : null
+
+  // When user changes payment chain, reset the cached wallet kit (different chain id)
+  useEffect(() => {
+    setPaymentSession(null)
+    paymentKitRef.current = null
+    // Also reset the selected token to the chain's default
+    setPaymentSymbol(paymentChain.tokens[0].symbol)
+  }, [paymentChainKey, paymentChain.tokens])
 
   // Auto-fill target from current chain+wallet when dialog opens
   useEffect(() => {
     if (open) {
       if (chainInfo?.chain_id) setTargetChainId(chainInfo.chain_id)
       if (appSession?.actor) setTargetAccount(String(appSession.actor))
+      // Default payment chain to whatever the app is on, if it's a known one
+      if (chainInfo?.chain_id === VAULTA_CHAIN_ID) setPaymentChainKey("vaulta")
+      else if (chainInfo?.chain_id === TELOS_CHAIN_ID) setPaymentChainKey("telos")
     }
   }, [open, chainInfo?.chain_id, appSession?.actor])
 
   const effectiveAmount = customAmount ? parseFloat(customAmount) : amount
 
-  // Initialize Telos SessionKit lazily on first need
-  const initTelosKit = useCallback(async () => {
-    if (telosKitRef.current) return telosKitRef.current
+  // Initialize SessionKit lazily for the selected payment chain
+  const initPaymentKit = useCallback(async () => {
+    if (paymentKitRef.current && paymentKitRef.current.chainKey === paymentChainKey) {
+      return paymentKitRef.current.kit
+    }
     const { SessionKit } = await import("@wharfkit/session")
     const { WebRenderer } = await import("@wharfkit/web-renderer")
     const { WalletPluginAnchor } = await import("@wharfkit/wallet-plugin-anchor")
     const kit = new SessionKit({
       appName: "Talkblock",
-      chains: [{ id: TELOS_CHAIN_ID, url: TELOS_RPC_URL }],
+      chains: [{ id: paymentChain.chainId, url: paymentChain.rpcUrl }],
       ui: new WebRenderer(),
       walletPlugins: [new WalletPluginAnchor()],
     })
-    telosKitRef.current = kit
+    paymentKitRef.current = { kit, chainKey: paymentChainKey }
     return kit
-  }, [])
+  }, [paymentChainKey, paymentChain.chainId, paymentChain.rpcUrl])
 
-  const connectTelosWallet = useCallback(async () => {
-    setTelosConnecting(true)
+  const connectPaymentWallet = useCallback(async () => {
+    setPaymentConnecting(true)
     setError("")
     try {
-      const kit = await initTelosKit()
+      const kit = await initPaymentKit()
       const result = await kit.login()
       if (result?.session) {
         const s = result.session
-        setTelosSession({
+        setPaymentSession({
           actor: String(s.actor),
           permission: String(s.permission),
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -108,48 +164,44 @@ export function PurchaseCreditsDialog({ trigger }: { trigger?: React.ReactNode }
         setError(msg)
       }
     } finally {
-      setTelosConnecting(false)
+      setPaymentConnecting(false)
     }
-  }, [initTelosKit])
+  }, [initPaymentKit])
 
   const handlePurchase = async () => {
-    if (!activeTelosSession || !effectiveAmount || effectiveAmount <= 0 || !targetChainId || !targetAccount) return
+    if (!activePaymentSession || !effectiveAmount || effectiveAmount <= 0 || !targetChainId || !targetAccount) return
 
     setState("signing")
     setError("")
 
     try {
-      const actor = String(activeTelosSession.actor)
-      const permission = isAppOnTelos && appSession
+      const actor = String(activePaymentSession.actor)
+      const permission = isAppOnPaymentChain && appSession
         ? String(appSession.permission)
-        : String((activeTelosSession as TelosSession).permission)
+        : String((activePaymentSession as PaymentSession).permission)
 
       const actions = [{
-        account: "eosio.token",
+        account: paymentToken.contract,
         name: "transfer",
         authorization: [{ actor, permission }],
         data: {
           from: actor,
           to: appWalletAccount,
-          quantity: `${effectiveAmount.toFixed(4)} TLOS`,
+          quantity: `${effectiveAmount.toFixed(4)} ${paymentToken.symbol}`,
           memo: `talkblock-credit:${targetChainId}:${targetAccount}`,
         },
       }]
 
-      const result = await activeTelosSession.transact({ actions })
+      const result = await activePaymentSession.transact({ actions })
 
-      // Extract transaction ID
       const txId = result?.resolved?.transaction?.id || result?.transaction?.id || result?.response?.transaction_id
       if (!txId) {
         throw new Error("Could not get transaction ID from wallet response")
       }
 
       setState("verifying")
-
-      // Wait a moment for chain finality
       await new Promise((resolve) => setTimeout(resolve, 2000))
 
-      // Verify on server
       const token = localStorage.getItem("auth_token")
       const headers: Record<string, string> = { "Content-Type": "application/json" }
       if (token) headers.Authorization = `Bearer ${token}`
@@ -161,6 +213,7 @@ export function PurchaseCreditsDialog({ trigger }: { trigger?: React.ReactNode }
           transactionId: String(txId),
           chainId: targetChainId,
           accountName: targetAccount,
+          paymentChain: paymentChainKey,
         }),
       })
 
@@ -170,7 +223,7 @@ export function PurchaseCreditsDialog({ trigger }: { trigger?: React.ReactNode }
         throw new Error(verifyData.error || "Verification failed")
       }
 
-      setTokensReceived(verifyData.tokens_credited)
+      setCreditsCredited(verifyData.credits_credited ?? verifyData.tokens_credited ?? 0)
       setState("success")
       await refresh()
     } catch (e) {
@@ -189,7 +242,7 @@ export function PurchaseCreditsDialog({ trigger }: { trigger?: React.ReactNode }
     setTimeout(() => {
       setState("idle")
       setError("")
-      setTokensReceived(0)
+      setCreditsCredited(0)
       setCustomAmount("")
     }, 200)
   }
@@ -217,7 +270,7 @@ export function PurchaseCreditsDialog({ trigger }: { trigger?: React.ReactNode }
             <div>
               <p className="font-medium">Credits Added!</p>
               <p className="text-sm text-muted-foreground mt-1">
-                {tokensReceived.toLocaleString()} credits added to {targetAccount}.
+                {creditsCredited.toLocaleString()} credits added to {targetAccount}.
               </p>
             </div>
             <Button onClick={handleClose}>Done</Button>
@@ -254,8 +307,36 @@ export function PurchaseCreditsDialog({ trigger }: { trigger?: React.ReactNode }
               </div>
             </div>
 
+            {/* Payment chain + token */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="mb-2 block">Pay With Chain</Label>
+                <select
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={paymentChainKey}
+                  onChange={(e) => setPaymentChainKey(e.target.value as "telos" | "vaulta")}
+                >
+                  {PAYMENT_CHAINS.map((c) => (
+                    <option key={c.key} value={c.key}>{c.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label className="mb-2 block">Token</Label>
+                <select
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={paymentSymbol}
+                  onChange={(e) => setPaymentSymbol(e.target.value)}
+                >
+                  {paymentChain.tokens.map((t) => (
+                    <option key={t.symbol} value={t.symbol}>{t.symbol}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div>
-              <Label className="mb-2 block">Select Amount (TLOS)</Label>
+              <Label className="mb-2 block">Select Amount ({paymentToken.symbol})</Label>
               <div className="flex gap-2">
                 {PRESET_AMOUNTS.map((a) => (
                   <Button
@@ -265,7 +346,7 @@ export function PurchaseCreditsDialog({ trigger }: { trigger?: React.ReactNode }
                     className="flex-1"
                     onClick={() => { setAmount(a); setCustomAmount("") }}
                   >
-                    {a} TLOS
+                    {a} {paymentToken.symbol}
                   </Button>
                 ))}
               </div>
@@ -284,15 +365,15 @@ export function PurchaseCreditsDialog({ trigger }: { trigger?: React.ReactNode }
             <div className="rounded-lg bg-muted p-3 text-sm space-y-1">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Amount</span>
-                <span className="font-medium">{effectiveAmount} TLOS</span>
+                <span className="font-medium">{effectiveAmount} {paymentToken.symbol}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Credits received</span>
-                <span className="font-medium">{(effectiveAmount * CREDITS_PER_TLOS).toLocaleString()} credits</span>
+                <span className="font-medium">{(effectiveAmount * paymentToken.creditsPerUnit).toLocaleString()} credits</span>
               </div>
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Rate</span>
-                <span>1 TLOS = {CREDITS_PER_TLOS.toLocaleString()} credits</span>
+                <span>1 {paymentToken.symbol} = {paymentToken.creditsPerUnit.toLocaleString()} credits</span>
               </div>
             </div>
 
@@ -304,11 +385,11 @@ export function PurchaseCreditsDialog({ trigger }: { trigger?: React.ReactNode }
             )}
 
             {/* Payment section */}
-            {activeTelosSession ? (
+            {activePaymentSession ? (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 p-2 rounded-lg bg-muted text-sm">
                   <Wallet className="h-4 w-4 text-green-500" />
-                  <span>Paying from: <span className="font-medium">{telosActor}</span> (Telos)</span>
+                  <span>Paying from: <span className="font-medium">{paymentActor}</span> ({paymentChain.label})</span>
                 </div>
                 <Button
                   className="w-full"
@@ -320,7 +401,7 @@ export function PurchaseCreditsDialog({ trigger }: { trigger?: React.ReactNode }
                   ) : state === "verifying" ? (
                     <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Verifying on chain...</>
                   ) : (
-                    <>Pay {effectiveAmount} TLOS</>
+                    <>Pay {effectiveAmount} {paymentToken.symbol}</>
                   )}
                 </Button>
               </div>
@@ -328,13 +409,13 @@ export function PurchaseCreditsDialog({ trigger }: { trigger?: React.ReactNode }
               <Button
                 className="w-full"
                 variant="outline"
-                onClick={connectTelosWallet}
-                disabled={telosConnecting}
+                onClick={connectPaymentWallet}
+                disabled={paymentConnecting}
               >
-                {telosConnecting ? (
+                {paymentConnecting ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Connecting...</>
                 ) : (
-                  <><Wallet className="h-4 w-4 mr-2" />Connect Telos Wallet to Pay</>
+                  <><Wallet className="h-4 w-4 mr-2" />Connect {paymentChain.label} Wallet to Pay</>
                 )}
               </Button>
             )}
