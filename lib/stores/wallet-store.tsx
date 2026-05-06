@@ -9,11 +9,10 @@ interface WalletSession {
   actor: string
   permission: string
   chain: { id: string }
-  transact: (args: { actions: any[] }) => Promise<any>
-  // Sign an externally-built transaction. Used for sponsor-paid (cosigned) flows
-  // where the server has already produced a partial signature and the wallet
-  // needs to sign the same transaction so both signatures can be broadcast together.
-  signTransaction: (transaction: any) => Promise<any>
+  // transact accepts wharfkit's TransactArgs (actions OR a full transaction) and
+  // optional TransactOptions (broadcast, allowModify, ...). Loosely typed because
+  // the underlying types are browser-only wharfkit imports.
+  transact: (args: any, options?: any) => Promise<any>
 }
 
 interface WalletState {
@@ -79,9 +78,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               actor: String(restored.actor),
               permission: String(restored.permission),
               chain: { id: String(restored.chain.id) },
-              transact: (args: any) => restored.transact(args),
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              signTransaction: (tx: any) => (restored as any).signTransaction(tx),
+              transact: (args: any, options?: any) => restored.transact(args, options),
             })
             setAccountName(String(restored.actor))
             // Re-authenticate so bookmarks/conversations load from DB
@@ -129,9 +126,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         actor: String(s.actor),
         permission: String(s.permission),
         chain: { id: String(s.chain.id) },
-        transact: (args: any) => s.transact(args),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        signTransaction: (tx: any) => (s as any).signTransaction(tx),
+        transact: (args: any, options?: any) => s.transact(args, options),
       })
       setAccountName(String(s.actor))
       if (chainInfo?.chain_id) {

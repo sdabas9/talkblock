@@ -148,13 +148,17 @@ export function TxProposalCard({ data, onTxError, onActionsChange }: TxProposalC
 
         const { packed_trx, signatures: cosignSigs, transaction } = await cosignRes.json()
 
-        // signTransaction is exposed by the wallet store wrapper; it delegates to
-        // the underlying wharfkit Session.
-        const walletSigResult = await session.signTransaction(transaction)
-        const walletSig =
-          typeof walletSigResult === "string"
-            ? walletSigResult
-            : walletSigResult?.signatures?.[0] ?? walletSigResult?.[0]
+        // Have the wallet sign the SAME transaction object the server signed.
+        // broadcast:false returns the signatures without sending; allowModify:false
+        // ensures the wallet doesn't rebuild the tx (which would invalidate the
+        // cosign signature against a different digest).
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const walletResult: any = await session.transact(
+          { transaction },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          { broadcast: false, allowModify: false } as any,
+        )
+        const walletSig = String(walletResult?.signatures?.[0])
 
         const endpointUrl = endpoint || "https://eos.greymass.com"
         const pushRes = await fetch(`${endpointUrl}/v1/chain/push_transaction`, {
