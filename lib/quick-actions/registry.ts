@@ -1,4 +1,4 @@
-import { Zap, Wallet, Database, Coins, Send } from "lucide-react"
+import { Zap, Wallet, Database, Coins, Send, Bolt } from "lucide-react"
 import { AntelopeClient } from "@/lib/antelope/client"
 import { buildTxProposal } from "./build-tx"
 import type { QuickAction } from "./types"
@@ -22,6 +22,27 @@ export const QUICK_ACTIONS: QuickAction[] = [
             net_frac: "",
             cpu_frac: "",
             max_payment: "",
+          },
+        },
+      ]),
+    }),
+  },
+  {
+    id: "quickpowerup",
+    label: "Quick Powerup",
+    icon: Bolt,
+    applicableChains: ["EOS Mainnet"],
+    build: (ctx) => ({
+      kind: "tx",
+      txProposal: buildTxProposal("Quick Powerup (98% CPU / 2% NET)", [
+        {
+          account: "core.vaulta",
+          name: "transfer",
+          data: {
+            from: ctx.walletAccount,
+            to: "quickpowerup",
+            quantity: "",
+            memo: `${ctx.walletAccount} 98`,
           },
         },
       ]),
