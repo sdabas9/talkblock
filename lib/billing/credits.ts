@@ -1,8 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/server"
 import { isSupabaseConfigured } from "@/lib/supabase/check"
 
-const FREE_REQUESTS_PER_DAY = 5
-const TOKENS_PER_TLOS = 250000
+const FREE_REQUESTS_PER_DAY = 6
+const CREDITS_PER_TLOS = 250
 
 interface UsageAllowance {
   allowed: boolean
@@ -67,24 +67,24 @@ export async function checkUsageAllowance(chainId: string, accountName: string):
   }
 }
 
+export type UsageKind = "chat" | "cosign"
+
 export async function recordUsage(
   chainId: string,
   accountName: string,
   mode: "free" | "paid",
-  inputTokens: number,
-  outputTokens: number,
-  model: string
+  credits: number,
+  kind: UsageKind,
+  model?: string,
 ) {
   if (!isSupabaseConfigured()) return
 
   const supabase = createAdminClient()!
   const today = new Date().toISOString().split("T")[0]
-  const totalTokens = inputTokens + outputTokens
 
-  // Always upsert daily_usage
   const { data: existing } = await supabase
     .from("daily_usage")
-    .select("id, request_count, total_input_tokens, total_output_tokens")
+    .select("id, request_count")
     .eq("chain_id", chainId)
     .eq("account_name", accountName)
     .eq("date", today)
@@ -93,11 +93,7 @@ export async function recordUsage(
   if (existing) {
     await supabase
       .from("daily_usage")
-      .update({
-        request_count: existing.request_count + 1,
-        total_input_tokens: (existing.total_input_tokens ?? 0) + inputTokens,
-        total_output_tokens: (existing.total_output_tokens ?? 0) + outputTokens,
-      })
+      .update({ request_count: existing.request_count + 1 })
       .eq("id", existing.id)
   } else {
     await supabase.from("daily_usage").insert({
@@ -105,12 +101,9 @@ export async function recordUsage(
       account_name: accountName,
       date: today,
       request_count: 1,
-      total_input_tokens: inputTokens,
-      total_output_tokens: outputTokens,
     })
   }
 
-  // If paid mode, deduct from balance and log transaction
   if (mode === "paid") {
     const { data: balance } = await supabase
       .from("credit_balances")
@@ -120,7 +113,7 @@ export async function recordUsage(
       .single()
 
     const currentBalance = balance?.balance_tokens ?? 0
-    const newBalance = Math.max(0, currentBalance - totalTokens)
+    const newBalance = Math.max(0, currentBalance - credits)
 
     await supabase
       .from("credit_balances")
@@ -132,11 +125,9 @@ export async function recordUsage(
       chain_id: chainId,
       account_name: accountName,
       type: "usage",
-      input_tokens: inputTokens,
-      output_tokens: outputTokens,
-      total_tokens: totalTokens,
-      model,
-      token_units_delta: -totalTokens,
+      total_tokens: credits,
+      model: model ?? kind,
+      token_units_delta: -credits,
       balance_after: newBalance,
     })
   }
@@ -165,7 +156,7 @@ export async function creditDeposit(
     throw new Error("Transaction already processed")
   }
 
-  const tokenUnits = Math.floor(tlosAmount * TOKENS_PER_TLOS)
+  const tokenUnits = Math.floor(tlosAmount * CREDITS_PER_TLOS)
 
   // Upsert credit_balances
   const { data: existing } = await supabase
