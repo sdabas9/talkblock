@@ -274,7 +274,7 @@ This is a one-shot SQL run. Existing `balance_tokens` values are in token units 
 - [ ] **Step 1: Run the migration SQL**
 
 ```bash
-SBP="<supabase-personal-access-token>"
+SBP="<supabase-personal-access-token>"   # see MEMORY.md
 PROJ="nednzedwmguhqhfnszyh"
 
 curl -s -X POST -H "Authorization: Bearer $SBP" -H "Content-Type: application/json" \
