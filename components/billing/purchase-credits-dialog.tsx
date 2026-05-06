@@ -393,7 +393,19 @@ export function PurchaseCreditsDialog({
   const isControlled = controlledOpen !== undefined
 
   return (
-    <Dialog open={open} onOpenChange={(v) => v ? setOpen(true) : handleClose()}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (v) {
+          setOpen(true)
+          return
+        }
+        // Don't allow closing mid-transaction — user needs to see the
+        // verifying spinner and the eventual success/error.
+        if (state === "signing" || state === "verifying") return
+        handleClose()
+      }}
+    >
       {!isControlled && (
         <DialogTrigger asChild>
           {trigger || (
@@ -404,7 +416,17 @@ export function PurchaseCreditsDialog({
           )}
         </DialogTrigger>
       )}
-      <DialogContent>
+      <DialogContent
+        onPointerDownOutside={(e) => {
+          if (state === "signing" || state === "verifying") e.preventDefault()
+        }}
+        onInteractOutside={(e) => {
+          if (state === "signing" || state === "verifying") e.preventDefault()
+        }}
+        onEscapeKeyDown={(e) => {
+          if (state === "signing" || state === "verifying") e.preventDefault()
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Purchase Credits</DialogTitle>
         </DialogHeader>
