@@ -27,7 +27,7 @@ export function ChatMessage({ role, children }: ChatMessageProps) {
           "rounded-lg px-4 py-2 max-w-[80%] text-sm",
           role === "user"
             ? "bg-primary text-primary-foreground whitespace-pre-wrap"
-            : "bg-muted"
+            : "bg-muted w-full"
         )}
       >
         {role === "assistant" ? (
