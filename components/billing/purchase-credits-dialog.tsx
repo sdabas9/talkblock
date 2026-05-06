@@ -135,6 +135,44 @@ export function PurchaseCreditsDialog({
 
   const effectiveAmount = customAmount ? parseFloat(customAmount) : amount
 
+  // Wallet balance for the selected payment token
+  const [paymentBalance, setPaymentBalance] = useState<number | null>(null)
+  const [balanceLoading, setBalanceLoading] = useState(false)
+
+  useEffect(() => {
+    if (!open || !paymentActor) {
+      setPaymentBalance(null)
+      return
+    }
+    let cancelled = false
+    setBalanceLoading(true)
+    ;(async () => {
+      try {
+        const res = await fetch(`${paymentChain.rpcUrl}/v1/chain/get_currency_balance`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code: paymentToken.contract,
+            account: paymentActor,
+            symbol: paymentToken.symbol,
+          }),
+        })
+        const arr = (await res.json()) as string[]
+        if (cancelled) return
+        const first = Array.isArray(arr) ? arr[0] : null
+        const num = first ? parseFloat(String(first).split(" ")[0]) : 0
+        setPaymentBalance(isNaN(num) ? 0 : num)
+      } catch {
+        if (!cancelled) setPaymentBalance(null)
+      } finally {
+        if (!cancelled) setBalanceLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [open, paymentActor, paymentChain.rpcUrl, paymentToken.contract, paymentToken.symbol, state])
+
   // Initialize SessionKit lazily for the selected payment chain
   const initPaymentKit = useCallback(async () => {
     if (paymentKitRef.current && paymentKitRef.current.chainKey === paymentChainKey) {
@@ -391,6 +429,18 @@ export function PurchaseCreditsDialog({
                 <span>Rate</span>
                 <span>1 {paymentToken.symbol} = {paymentToken.creditsPerUnit.toLocaleString()} credits</span>
               </div>
+              {paymentActor && (
+                <div className="flex justify-between text-xs pt-1 border-t border-border/40">
+                  <span className="text-muted-foreground">Your {paymentToken.symbol} balance</span>
+                  <span className={paymentBalance !== null && effectiveAmount > paymentBalance ? "text-yellow-600 dark:text-yellow-400 font-medium" : "text-muted-foreground"}>
+                    {balanceLoading
+                      ? "…"
+                      : paymentBalance === null
+                      ? "—"
+                      : `${paymentBalance.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${paymentToken.symbol}`}
+                  </span>
+                </div>
+              )}
             </div>
 
             {error && (
@@ -410,7 +460,7 @@ export function PurchaseCreditsDialog({
                 <Button
                   className="w-full"
                   onClick={handlePurchase}
-                  disabled={!appWalletAccount || !targetChainId || !targetAccount || state === "signing" || state === "verifying" || !effectiveAmount || effectiveAmount <= 0}
+                  disabled={!appWalletAccount || !targetChainId || !targetAccount || state === "signing" || state === "verifying" || !effectiveAmount || effectiveAmount <= 0 || (paymentBalance !== null && effectiveAmount > paymentBalance)}
                 >
                   {state === "signing" ? (
                     <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Signing with Wallet...</>
