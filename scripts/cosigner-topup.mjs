@@ -27,6 +27,7 @@ const CPU_TRIGGER_PCT = 98         // fire at 98%+ used
 const NET_TRIGGER_PCT = 98         // fire at 98%+ used (CPU is normally the binding side)
 const CPU_PCT_MEMO = 98            // % of topup budget routed to CPU (rest to NET)
 const LOW_BALANCE_WARN_A = 1.0     // warn when treasury < this many A
+const EXPIRY_BUFFER_SEC = 3600     // refresh if powerup expires in < 1 hour
 
 function pct(used, max) {
   return max > 0 ? (Number(used) / Number(max)) * 100 : 0
@@ -47,6 +48,32 @@ async function getAccountState(client, name) {
 async function getABalance(client, name) {
   const balances = await client.v1.chain.get_currency_balance(TOKEN_CONTRACT, name, "A")
   return balances?.[0] ? Number(String(balances[0]).split(" ")[0]) : 0
+}
+
+// Query the quickpowerup contract's `powerups` table for the row keyed on
+// `receiver`. Returns { exists, validUntilEpochSec, secondsUntilExpiry } or
+// { exists: false } if no row (either never powered up via quickpowerup or
+// the row was cleaned up after a previous expiry).
+async function getQuickpowerupRow(client, receiver) {
+  const res = await client.v1.chain.get_table_rows({
+    code: QUICKPOWERUP,
+    scope: QUICKPOWERUP,
+    table: "powerups",
+    lower_bound: receiver,
+    upper_bound: receiver,
+    json: true,
+    limit: 1,
+  })
+  const row = res.rows?.[0]
+  if (!row || row.receiver !== receiver) return { exists: false }
+  // valid_until is "YYYY-MM-DDTHH:mm:ss" in UTC (no timezone suffix from the chain)
+  const validUntilSec = Math.floor(new Date(row.valid_until + "Z").getTime() / 1000)
+  const nowSec = Math.floor(Date.now() / 1000)
+  return {
+    exists: true,
+    validUntilSec,
+    secondsUntilExpiry: validUntilSec - nowSec,
+  }
 }
 
 async function fireTopup(client, key) {
@@ -103,11 +130,15 @@ async function main() {
 
   const state = await getAccountState(client, TREASURY_ACCOUNT)
   const balance = await getABalance(client, TREASURY_ACCOUNT)
+  const expiry = await getQuickpowerupRow(client, TREASURY_ACCOUNT)
   const cpuPct = pct(state.cpu_used, state.cpu_max)
   const netPct = pct(state.net_used, state.net_max)
+  const expiryStr = expiry.exists
+    ? `expires in ${expiry.secondsUntilExpiry}s`
+    : "no quickpowerup row"
 
   console.log(
-    `${ts}  ${TREASURY_ACCOUNT} CPU ${state.cpu_used}/${state.cpu_max}us (${cpuPct.toFixed(2)}%)  NET ${state.net_used}/${state.net_max}b (${netPct.toFixed(2)}%)  bal ${balance.toFixed(4)} A`,
+    `${ts}  ${TREASURY_ACCOUNT} CPU ${state.cpu_used}/${state.cpu_max}us (${cpuPct.toFixed(2)}%)  NET ${state.net_used}/${state.net_max}b (${netPct.toFixed(2)}%)  bal ${balance.toFixed(4)} A  ${expiryStr}`,
   )
 
   if (balance < LOW_BALANCE_WARN_A) {
@@ -116,11 +147,21 @@ async function main() {
     )
   }
 
-  const needsTopup = cpuPct >= CPU_TRIGGER_PCT || netPct >= NET_TRIGGER_PCT
-  if (!needsTopup) {
-    console.log(`${ts}  SKIP  under thresholds (cpu ${CPU_TRIGGER_PCT}%, net ${NET_TRIGGER_PCT}%)`)
+  const cpuTrigger = cpuPct >= CPU_TRIGGER_PCT
+  const netTrigger = netPct >= NET_TRIGGER_PCT
+  const expiryTrigger =
+    expiry.exists && expiry.secondsUntilExpiry < EXPIRY_BUFFER_SEC
+  const triggers = [
+    cpuTrigger && `cpu ${cpuPct.toFixed(1)}% >= ${CPU_TRIGGER_PCT}%`,
+    netTrigger && `net ${netPct.toFixed(1)}% >= ${NET_TRIGGER_PCT}%`,
+    expiryTrigger && `expires in ${expiry.secondsUntilExpiry}s < ${EXPIRY_BUFFER_SEC}s`,
+  ].filter(Boolean)
+
+  if (triggers.length === 0) {
+    console.log(`${ts}  SKIP  no triggers (cpu<${CPU_TRIGGER_PCT}%, net<${NET_TRIGGER_PCT}%, expiry>${EXPIRY_BUFFER_SEC}s)`)
     return
   }
+  console.log(`${ts}  TRIGGER  ${triggers.join(" | ")}`)
   if (balance < Number(TOPUP_AMOUNT.split(" ")[0])) {
     console.error(`${ts}  ERROR  cannot topup — balance ${balance.toFixed(4)} A < topup amount ${TOPUP_AMOUNT}`)
     process.exit(1)
