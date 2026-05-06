@@ -78,9 +78,11 @@ export async function buildAndSignCosign(
     signatures: [cosignSig],
   })
 
-  // Use PackedTransaction.fromSigned to produce the canonical packed bytes —
-  // this is the same encoding the chain expects in /v1/chain/push_transaction.
-  const packed = PackedTransaction.fromSigned(signed)
+  // Use PackedTransaction.fromSigned with compression=0 (none). The default
+  // compression in wharfkit is 1 (zlib), but our /v1/chain/push_transaction
+  // call doesn't set a compression flag and the chain assumes none, so passing
+  // zlib bytes there gets rejected as "Invalid packed transaction".
+  const packed = PackedTransaction.fromSigned(signed, 0)
 
   return {
     packed_trx: packed.packed_trx.hexString,
