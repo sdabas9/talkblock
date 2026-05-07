@@ -201,11 +201,40 @@ export function ChatPanel() {
   }, [setMessages])
 
 
+  // Auto-scroll to bottom on new content, but ONLY when the user is already
+  // near the bottom. If they've scrolled up to read, don't yank them back —
+  // they're trying to read history while the model is still streaming.
+  const stickToBottomRef = useRef(true)
+
   useEffect(() => {
-    if (scrollRef.current) {
+    const el = scrollRef.current
+    if (!el) return
+    const onScroll = () => {
+      // 80px threshold lets the user nudge slightly without breaking stickiness
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+      stickToBottomRef.current = distanceFromBottom < 80
+    }
+    el.addEventListener("scroll", onScroll, { passive: true })
+    return () => el.removeEventListener("scroll", onScroll)
+  }, [])
+
+  useEffect(() => {
+    if (scrollRef.current && stickToBottomRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages, isLoading])
+
+  // When the user submits a new message, force-stick to bottom for the next
+  // few rerenders so they actually see their submission + the response start.
+  const lastUserMsgIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    const lastUser = [...messages].reverse().find((m) => m.role === "user")
+    if (lastUser && lastUser.id !== lastUserMsgIdRef.current) {
+      lastUserMsgIdRef.current = lastUser.id
+      stickToBottomRef.current = true
+      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [messages])
 
   if (!isConfigured) {
     return (
