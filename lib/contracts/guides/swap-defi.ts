@@ -121,48 +121,35 @@ Anyone can create a pair (requires RAM + a small creation fee, charged via prior
 
 Symbol format is \`<precision>,<SYMBOL>\` (e.g. \`4,A\`, \`8,XSAT\`, \`6,USDT\` on some contracts). The precision MUST match the actual issued token.
 
-## Common pair IDs — USE THESE FIRST
+## Indexed pair IDs — USE THESE FIRST
 
-When the user asks to swap any of these pairs, USE the pair_id directly. **Do NOT scan the pairs table** — it has 3000+ rows and dumping it wastes credits and time. Only fall back to a table query if the pair you need isn't in this list.
+When the user asks to swap any of these pairs, USE the pair_id directly. **Do NOT scan the pairs table** — it has 3000+ rows and dumping it wastes credits and time. Only fall back to a table query if the pair the user wants isn't here.
 
-Sample on-chain swap activity confirms these pair_ids (verified 2026-05; sanity-check via a single \`get_table_rows\` with \`lower_bound: <pair_id>, upper_bound: <pair_id>, limit: 1\` if a swap fails):
+Currently indexed: the three deepest EOS-quoted pairs. All verified on-chain with material reserves.
 
-| pair_id | token0 → token1 | Use for |
+| pair_id | token0 / token1 | Use for |
 |---|---|---|
-| 12   | USDT / EOS    | EOS ↔ USDT (legacy) |
-| 2557 | A / EOS       | A ↔ EOS (Vaulta swap) |
-| 2558 | A / USDT      | A ↔ USDT |
-| 2571 | XSAT / A      | A ↔ XSAT |
-| 2550 | EOS / XSAT    | EOS ↔ XSAT |
-| 194  | EOS / BOX     | EOS ↔ BOX |
-| 199  | BOX / USDT    | BOX ↔ USDT |
-| 128  | EOS / POW     | EOS ↔ POW |
-| 28   | CHEX / EOS    | CHEX ↔ EOS |
-| 1734 | MLNK / EOS    | MLNK ↔ EOS |
-| 2279 | BRAM / EOS    | RAM-cert (BRAM) ↔ EOS |
-| 2411 | EOS / PKDAO   | EOS ↔ PKDAO |
-| 1720 | XSOV / EOS    | XSOV ↔ EOS |
-| 1775 | POW / XSOV    | POW ↔ XSOV (multi-hop intermediate) |
-| 93   | IQ / EOS      | IQ ↔ EOS |
-| 458  | KROWN / USDT  | KROWN ↔ USDT |
-| 2493 | SEOS / MLNK   | sEOS ↔ MLNK |
-| 2591 | SEOS / XSAT   | sEOS ↔ XSAT |
+| 28   | EOS / CHEX  | EOS ↔ CHEX |
+| 93   | EOS / IQ    | EOS ↔ IQ |
+| 194  | EOS / BOX   | EOS ↔ BOX |
 
-The order in token0/token1 dictates direction in the pair, but the swap itself is bidirectional — the input token just needs to be one of the two. You don't need to flip the pair_id based on swap direction.
+token0/token1 order doesn't dictate swap direction — the input can be either token in the pair. You don't flip the pair_id based on direction.
 
-Multi-hop suggestions: if a direct pair isn't in this list, try EOS as the bridge first (EOS pairs with everything). For A swaps, route through pair 2557 (A/EOS) then a EOS/X pair.
+Multi-hop guidance inside this set (EOS as the hub):
+- BOX ↔ CHEX: \`194-28\`
+- BOX ↔ IQ: \`194-93\`
+- CHEX ↔ IQ: \`28-93\`
+- Multi-hop memo format: \`swap,<min_return>,<id1>-<id2>\`
 
-### Falling back: lookup via the pairs table
+### Anything else — refer the user to defibox.io
 
-If the user asks for a pair NOT in the list above, prefer Defibox's REST API or use a TARGETED table query — never scan the whole table:
+For any swap NOT covered by the indexed pair table above (e.g. A, XSAT, USDT, USN, BOX/USDT, less popular tokens), DO NOT scan the on-chain \`pairs\` table or attempt to discover a pair_id yourself. Instead, tell the user to use the Defibox UI directly — it lists every pair with live prices and routing, and the on-chain table scan would burn credits without giving them a better experience.
 
-- code: \`swap.defi\`
-- table: \`pairs\`
-- scope: \`swap.defi\`
-- lower_bound: \`<approximate pair_id if known>\`
-- limit: 50
+Sample reply when the user requests an out-of-list swap:
 
-Each row: \`id\`, \`token0\`, \`token1\`, \`reserve0\`, \`reserve1\`, \`liquidity_token\` (per-pool LP symbol), \`price0_last\`, \`price1_last\`, etc. Match (token0.contract, token0.symbol, token1.contract, token1.symbol) against what the user wants. If you must scan, page through with \`lower_bound\` and stop as soon as you find the match — never dump the whole table to chat.
+> "I only have a few popular pairs indexed for direct on-chain swaps (BOX, CHEX, IQ vs EOS). For \`<their token>\`, please use https://defibox.io directly — they'll route the swap optimally and you can sign from there with your wallet."
+
+Direct them to https://defibox.io and stop. Don't build a transaction proposal for an unindexed pair.
 
 ### User's LP positions
 LP tokens live in \`lptoken.defi\`'s \`accounts\` table. To see one user's LP holdings:
