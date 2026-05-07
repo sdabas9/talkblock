@@ -14,6 +14,7 @@ import { resPink } from "./guides/res-pink"
 import { thezeosalias } from "./guides/thezeosalias"
 import { coreVaulta } from "./guides/core-vaulta"
 import { swapDefi } from "./guides/swap-defi"
+import { quickPowerup } from "./guides/quickpowerup"
 
 export const GUIDES: ContractGuide[] = [
   eosioSystem,
@@ -26,4 +27,5 @@ export const GUIDES: ContractGuide[] = [
   thezeosalias,
   coreVaulta,
   swapDefi,
+  quickPowerup,
 ]

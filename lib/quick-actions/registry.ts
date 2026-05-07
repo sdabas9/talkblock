@@ -34,7 +34,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
     applicableChains: ["EOS Mainnet"],
     build: (ctx) => ({
       kind: "tx",
-      txProposal: buildTxProposal("Quick Powerup (98% CPU / 2% NET)", [
+      txProposal: buildTxProposal("Quick Powerup (95% CPU / 5% NET)", [
         {
           account: "core.vaulta",
           name: "transfer",
@@ -42,7 +42,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
             from: ctx.walletAccount,
             to: "quickpowerup",
             quantity: "0.0100 A",
-            memo: `${ctx.walletAccount} 98`,
+            memo: `${ctx.walletAccount} 95`,
           },
         },
       ]),
