@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { FileSignature, Send, Loader2, Check, X, Pencil, Link2, Terminal, Copy } from "lucide-react"
+import { FileSignature, Send, Loader2, Check, X, Pencil, Link2, Terminal, Copy, Settings2 } from "lucide-react"
 import { useWallet } from "@/lib/stores/wallet-store"
 import { useChain } from "@/lib/stores/chain-store"
 import { useDetailContext } from "@/lib/stores/context-store"
@@ -56,6 +56,34 @@ export function TxProposalCard({ data, onTxError, onActionsChange }: TxProposalC
   useEffect(() => {
     onActionsChange?.(editableActions)
   }, [editableActions, onActionsChange])
+
+  // Quick Powerup actions hide the memo and surface a CPU/NET % editor instead.
+  // The memo encodes the split as "<receiver> <cpu_pct>" — we extract cpu_pct
+  // from there and write back when the user changes it.
+  const isQuickPowerupAction = (a: TxAction): boolean =>
+    a.account === "core.vaulta" && a.name === "transfer" && a.data?.to === "quickpowerup"
+
+  const getCpuPct = (a: TxAction): number => {
+    const memo = String(a.data?.memo ?? "")
+    const parts = memo.trim().split(/\s+/)
+    const pct = Number(parts[1])
+    return Number.isFinite(pct) && pct > 0 && pct <= 100 ? pct : 98
+  }
+
+  const setCpuPct = (actionIdx: number, pct: number) => {
+    setEditableActions((prev) =>
+      prev.map((a, i) => {
+        if (i !== actionIdx) return a
+        const memo = String(a.data?.memo ?? "")
+        const parts = memo.trim().split(/\s+/)
+        const receiver = parts[0] || (typeof a.data?.from === "string" ? String(a.data.from) : "")
+        const next = `${receiver} ${pct}`
+        return { ...a, data: { ...a.data, memo: next } }
+      }),
+    )
+  }
+
+  const [settingsOpenIdx, setSettingsOpenIdx] = useState<number | null>(null)
 
   const updateField = (actionIdx: number, fieldKey: string, value: string) => {
     setEditableActions((prev) => {
@@ -264,29 +292,74 @@ export function TxProposalCard({ data, onTxError, onActionsChange }: TxProposalC
           {isEdited && <Badge variant="secondary" className="ml-2 text-[10px]">edited</Badge>}
         </p>
         <div className="space-y-2">
-          {editableActions.map((action, actionIdx) => (
-            <div key={actionIdx} className="bg-muted rounded-md p-3 text-xs space-y-2">
-              <div className="flex items-center gap-1 font-medium">
-                <Badge variant="outline" className="text-[10px]">{action.account}</Badge>
-                <span className="text-muted-foreground">::</span>
-                <span>{action.name}</span>
-                <Pencil className="h-3 w-3 ml-auto text-muted-foreground" />
-              </div>
-              <div className="space-y-1.5">
-                {Object.entries(action.data).map(([key, value]) => (
-                  <div key={key} className="space-y-0.5">
-                    <Label className="text-[10px] text-muted-foreground">{key}</Label>
-                    <Input
-                      className="h-7 text-xs font-mono"
-                      value={String(value ?? "")}
-                      onChange={(e) => updateField(actionIdx, key, e.target.value)}
+          {editableActions.map((action, actionIdx) => {
+            const isQp = isQuickPowerupAction(action)
+            const cpuPct = isQp ? getCpuPct(action) : 0
+            const fields = Object.entries(action.data).filter(([k]) => !(isQp && k === "memo"))
+            return (
+              <div key={actionIdx} className="bg-muted rounded-md p-3 text-xs space-y-2">
+                <div className="flex items-center gap-1 font-medium">
+                  <Badge variant="outline" className="text-[10px]">{action.account}</Badge>
+                  <span className="text-muted-foreground">::</span>
+                  <span>{action.name}</span>
+                  {isQp && (
+                    <span className="ml-1 text-[10px] text-muted-foreground">
+                      · {cpuPct}% CPU / {100 - cpuPct}% NET
+                    </span>
+                  )}
+                  {isQp ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 ml-auto text-muted-foreground hover:text-foreground"
+                      onClick={() => setSettingsOpenIdx(settingsOpenIdx === actionIdx ? null : actionIdx)}
                       disabled={!!txResult}
-                    />
+                      aria-label="CPU/NET split settings"
+                    >
+                      <Settings2 className="h-3 w-3" />
+                    </Button>
+                  ) : (
+                    <Pencil className="h-3 w-3 ml-auto text-muted-foreground" />
+                  )}
+                </div>
+                {isQp && settingsOpenIdx === actionIdx && (
+                  <div className="rounded-md border border-border/60 bg-background p-2 space-y-1.5">
+                    <Label className="text-[10px] text-muted-foreground">CPU %</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={99}
+                        step={1}
+                        className="h-7 text-xs font-mono w-20"
+                        value={cpuPct}
+                        onChange={(e) => {
+                          const v = Number(e.target.value)
+                          if (Number.isFinite(v) && v >= 1 && v <= 99) setCpuPct(actionIdx, v)
+                        }}
+                      />
+                      <span className="text-[10px] text-muted-foreground">
+                        {cpuPct}% CPU / {100 - cpuPct}% NET
+                      </span>
+                    </div>
                   </div>
-                ))}
+                )}
+                <div className="space-y-1.5">
+                  {fields.map(([key, value]) => (
+                    <div key={key} className="space-y-0.5">
+                      <Label className="text-[10px] text-muted-foreground">{key}</Label>
+                      <Input
+                        className="h-7 text-xs font-mono"
+                        value={String(value ?? "")}
+                        onChange={(e) => updateField(actionIdx, key, e.target.value)}
+                        disabled={!!txResult}
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
         <div>
           <button
