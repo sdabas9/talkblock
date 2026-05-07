@@ -20,26 +20,9 @@ export async function checkUsageAllowance(chainId: string, accountName: string):
   const supabase = createAdminClient()!
   const today = new Date().toISOString().split("T")[0]
 
-  // Check today's usage by chain+account
-  const { data: usage } = await supabase
-    .from("daily_usage")
-    .select("request_count")
-    .eq("chain_id", chainId)
-    .eq("account_name", accountName)
-    .eq("date", today)
-    .single()
-
-  const requestCount = usage?.request_count ?? 0
-
-  if (requestCount < FREE_REQUESTS_PER_DAY) {
-    return {
-      allowed: true,
-      mode: "free",
-      freeRemaining: FREE_REQUESTS_PER_DAY - requestCount,
-    }
-  }
-
-  // Free tier exhausted — check paid balance
+  // Paid balance takes priority. The free daily quota is for users who have
+  // never purchased — once a user has any paid credits, those are consumed
+  // first and they don't also get the free 6/day on top.
   const { data: balance } = await supabase
     .from("credit_balances")
     .select("balance_tokens")
@@ -55,6 +38,25 @@ export async function checkUsageAllowance(chainId: string, accountName: string):
       mode: "paid",
       freeRemaining: 0,
       balanceTokens,
+    }
+  }
+
+  // No paid balance — fall back to the free daily quota.
+  const { data: usage } = await supabase
+    .from("daily_usage")
+    .select("request_count")
+    .eq("chain_id", chainId)
+    .eq("account_name", accountName)
+    .eq("date", today)
+    .single()
+
+  const requestCount = usage?.request_count ?? 0
+
+  if (requestCount < FREE_REQUESTS_PER_DAY) {
+    return {
+      allowed: true,
+      mode: "free",
+      freeRemaining: FREE_REQUESTS_PER_DAY - requestCount,
     }
   }
 

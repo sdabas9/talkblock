@@ -2,7 +2,7 @@ import { createAdminClient } from "@/lib/supabase/server"
 import { isSupabaseConfigured } from "@/lib/supabase/check"
 import { getAppConfig } from "@/lib/config"
 
-const FREE_REQUESTS_PER_DAY = 5
+const FREE_REQUESTS_PER_DAY = 6
 
 export async function GET(req: Request) {
   const url = new URL(req.url)
@@ -57,15 +57,21 @@ export async function GET(req: Request) {
   const balance = balanceResult.data
   const usage = usageResult.data
   const requestCount = usage?.request_count ?? 0
+  const balanceTokens = balance?.balance_tokens ?? 0
+
+  // Paid users do not also receive the daily free quota. Free remaining is
+  // only reported when the account has no paid balance.
+  const freeRemaining =
+    balanceTokens > 0 ? 0 : Math.max(0, FREE_REQUESTS_PER_DAY - requestCount)
 
   const appWalletAccount = await getAppConfig("app_wallet_account")
 
   return Response.json({
-    balance_tokens: balance?.balance_tokens ?? 0,
+    balance_tokens: balanceTokens,
     total_deposited_tlos: balance?.total_deposited_tlos ?? 0,
     today: {
       request_count: requestCount,
-      free_remaining: Math.max(0, FREE_REQUESTS_PER_DAY - requestCount),
+      free_remaining: freeRemaining,
       total_input_tokens: usage?.total_input_tokens ?? 0,
       total_output_tokens: usage?.total_output_tokens ?? 0,
     },
