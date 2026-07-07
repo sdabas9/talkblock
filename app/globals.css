@@ -233,3 +233,11 @@ html {
     @apply bg-background text-foreground;
   }
 }
+
+/* Terminal dashboard — faint graph-paper grid behind the module grid */
+.terminal-grid-bg {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--border) 40%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--border) 40%, transparent) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
