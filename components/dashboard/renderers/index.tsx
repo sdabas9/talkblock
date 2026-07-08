@@ -1,4 +1,6 @@
 import { KvPanel } from "./kv-panel"
+import { TransfersPanel } from "./transfers-panel"
+import { ActionsPanel } from "./actions-panel"
 
 interface DashboardRendererProps {
   toolName: string
@@ -10,6 +12,10 @@ interface DashboardRendererProps {
 // Unknown tools fall through to KvPanel.
 export function DashboardRenderer({ toolName, result }: DashboardRendererProps) {
   switch (toolName) {
+    case "get_transfers":
+      return <TransfersPanel data={result} />
+    case "get_actions":
+      return <ActionsPanel data={result} />
     default:
       return <KvPanel result={result} />
   }
