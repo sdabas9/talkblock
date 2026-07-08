@@ -1,6 +1,8 @@
 import { KvPanel } from "./kv-panel"
 import { TransfersPanel } from "./transfers-panel"
 import { ActionsPanel } from "./actions-panel"
+import { TablePanel } from "./table-panel"
+import { TokensPanel } from "./tokens-panel"
 
 interface DashboardRendererProps {
   toolName: string
@@ -16,6 +18,12 @@ export function DashboardRenderer({ toolName, result }: DashboardRendererProps) 
       return <TransfersPanel data={result} />
     case "get_actions":
       return <ActionsPanel data={result} />
+    case "get_table_rows":
+      return <TablePanel data={result} />
+    case "get_producers":
+      return <TablePanel data={{ rows: result.producers || [] }} />
+    case "get_tokens":
+      return <TokensPanel data={result} />
     default:
       return <KvPanel result={result} />
   }
