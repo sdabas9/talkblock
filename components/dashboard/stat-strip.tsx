@@ -20,7 +20,7 @@ export function StatStrip({ bookmarks, onDragStart, onDragOver, onDrop, dragId, 
         <div
           key={bookmark.id}
           data-bookmark-id={bookmark.id}
-          className={`h-[5.5rem] w-full sm:w-auto sm:flex-1 sm:min-w-[180px] sm:max-w-[280px] transition-opacity ${
+          className={`h-28 w-full sm:w-auto sm:flex-1 sm:min-w-[180px] sm:max-w-[280px] transition-opacity ${
             dragId === bookmark.id ? "opacity-50" : ""
           } ${dropTargetId === bookmark.id ? "ring-1 ring-primary" : ""}`}
         >

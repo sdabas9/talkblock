@@ -131,7 +131,7 @@ export function DashboardView() {
               <div
                 key={bookmark.id}
                 data-bookmark-id={bookmark.id}
-                className={`min-h-0 transition-opacity ${span} ${dragId === bookmark.id ? "opacity-50" : ""} ${
+                className={`min-h-0 min-w-0 transition-opacity ${span} ${dragId === bookmark.id ? "opacity-50" : ""} ${
                   dropTargetId === bookmark.id ? "ring-1 ring-primary" : ""
                 }`}
               >

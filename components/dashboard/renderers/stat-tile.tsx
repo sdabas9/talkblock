@@ -151,7 +151,7 @@ export function StatTile({ bookmark, onDragStart, onDragOver, onDrop }: StatTile
           <X className="h-2.5 w-2.5" />
         </Button>
       </div>
-      <div className="font-mono text-xl tabular-nums truncate leading-tight mt-0.5">{spec.value}</div>
+      <div className={`font-mono tabular-nums truncate leading-tight mt-0.5 ${spec.bars ? "text-lg" : "text-xl"}`}>{spec.value}</div>
       {spec.sub && (
         <div className="font-mono text-[10px] text-muted-foreground truncate">{spec.sub}</div>
       )}
