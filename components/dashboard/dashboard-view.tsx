@@ -77,7 +77,10 @@ export function DashboardView() {
     const currentIds = orderedBookmarks.map((b) => b.id)
     const dragIndex = currentIds.indexOf(dragId)
     const targetIndex = currentIds.indexOf(targetId)
-    if (dragIndex === -1 || targetIndex === -1) return
+    if (dragIndex === -1 || targetIndex === -1) {
+      setDragId(null)
+      return
+    }
 
     const newOrder = [...currentIds]
     newOrder.splice(dragIndex, 1)

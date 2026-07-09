@@ -25,6 +25,7 @@ export function DashboardPanel({ bookmark, onDragStart, onDragOver, onDrop }: Da
   return (
     <div
       draggable
+      data-bookmark-id={bookmark.id}
       onDragStart={(e) => onDragStart(e, bookmark.id)}
       onDragOver={onDragOver}
       onDrop={(e) => onDrop(e, bookmark.id)}
