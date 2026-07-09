@@ -5,8 +5,9 @@ import { useHistory } from "@/lib/stores/history-store"
 import { useDashboard } from "@/lib/stores/dashboard-store"
 import { useChain } from "@/lib/stores/chain-store"
 import { useWallet } from "@/lib/stores/wallet-store"
-import { DashboardCard } from "./dashboard-card"
-import { getCardSize } from "@/lib/dashboard/card-sizes"
+import { DashboardPanel } from "./dashboard-panel"
+import { StatStrip } from "./stat-strip"
+import { getModule } from "@/lib/dashboard/modules"
 import { DashboardHeader } from "./dashboard-header"
 import { EmptyState } from "./empty-state"
 
@@ -33,6 +34,22 @@ export function DashboardView() {
     })
   }, [chainBookmarks, itemOrder])
 
+  // Zone split: tiles go to the stat strip, everything else to the module grid
+  const tileBookmarks = useMemo(
+    () => orderedBookmarks.filter((b) => getModule(b.tool_name) === "tile"),
+    [orderedBookmarks],
+  )
+  const panelBookmarks = useMemo(
+    () => orderedBookmarks.filter((b) => getModule(b.tool_name) !== "tile"),
+    [orderedBookmarks],
+  )
+
+  const zoneOf = (id: string): "strip" | "grid" | null => {
+    const bm = chainBookmarks.find((b) => b.id === id)
+    if (!bm) return null
+    return getModule(bm.tool_name) === "tile" ? "strip" : "grid"
+  }
+
   const handleDragStart = (e: DragEvent, id: string) => {
     setDragId(id)
     e.dataTransfer.effectAllowed = "move"
@@ -51,6 +68,11 @@ export function DashboardView() {
     e.preventDefault()
     setDropTargetId(null)
     if (!dragId || dragId === targetId) return
+    // Reordering is constrained within a zone (tile↔tile, panel↔panel)
+    if (zoneOf(dragId) !== zoneOf(targetId)) {
+      setDragId(null)
+      return
+    }
 
     const currentIds = orderedBookmarks.map((b) => b.id)
     const dragIndex = currentIds.indexOf(dragId)
@@ -87,23 +109,30 @@ export function DashboardView() {
         hyperionEndpoint={hyperionEndpoint}
         bookmarks={orderedBookmarks}
       />
-      <div className="flex-1 overflow-auto p-4 md:p-6">
-        <div
-          className="grid grid-cols-1 lg:grid-cols-2 gap-4 [grid-auto-flow:dense]"
-          onDragEnd={handleDragEnd}
-        >
-          {orderedBookmarks.map((bookmark) => {
-            const size = getCardSize(bookmark.tool_name)
-            const span = size === "wide" ? "lg:col-span-2" : ""
+      <div className="flex-1 overflow-auto p-4 md:p-6 terminal-grid-bg" onDragEnd={handleDragEnd}>
+        <StatStrip
+          bookmarks={tileBookmarks}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          dragId={dragId}
+          dropTargetId={dropTargetId}
+        />
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 auto-rows-[5.5rem] gap-3 [grid-auto-flow:dense]">
+          {panelBookmarks.map((bookmark) => {
+            const wide = getModule(bookmark.tool_name) === "wide"
+            const span = wide
+              ? "md:col-span-2 xl:col-span-4 row-span-3"
+              : "md:col-span-2 xl:col-span-2 row-span-3"
             return (
               <div
                 key={bookmark.id}
                 data-bookmark-id={bookmark.id}
-                className={`transition-opacity ${span} ${dragId === bookmark.id ? "opacity-50 scale-95" : ""} ${
-                  dropTargetId === bookmark.id ? "ring-2 ring-primary rounded-xl" : ""
+                className={`min-h-0 transition-opacity ${span} ${dragId === bookmark.id ? "opacity-50" : ""} ${
+                  dropTargetId === bookmark.id ? "ring-1 ring-primary" : ""
                 }`}
               >
-                <DashboardCard
+                <DashboardPanel
                   bookmark={bookmark}
                   onDragStart={handleDragStart}
                   onDragOver={handleDragOver}
