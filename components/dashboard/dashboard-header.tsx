@@ -59,23 +59,25 @@ export function DashboardHeader({ chainName, chainEndpoint, hyperionEndpoint, bo
   const noun = count === 1 ? "bookmark" : "bookmarks"
 
   return (
-    <div className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-border/60">
-      <div className="flex items-center gap-2 text-sm">
-        <span className="font-medium">{chainName || "No chain"}</span>
+    <div className="flex items-center justify-between px-4 md:px-6 py-2.5 border-b border-border">
+      <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest">
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
+        <span>{chainName || "No chain"}</span>
         <span className="text-muted-foreground">·</span>
         <span className="text-muted-foreground">{count} {noun}</span>
       </div>
       <div className="flex items-center gap-3">
-        <span className="text-xs text-muted-foreground">
-          Last synced {formatAge(lastSyncedAt)}
+        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          Synced {formatAge(lastSyncedAt)}
         </span>
         <Button
           size="sm"
           variant="ghost"
+          className="font-mono text-[10px] uppercase tracking-widest rounded-none"
           disabled={refreshing || refreshable.length === 0}
           onClick={refreshAll}
         >
-          <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshing ? "animate-spin" : ""}`} />
+          <RefreshCw className={`h-3 w-3 mr-1.5 ${refreshing ? "animate-spin" : ""}`} />
           Refresh all
         </Button>
       </div>

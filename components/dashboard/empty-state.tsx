@@ -93,7 +93,7 @@ export function EmptyState({ chainName, chainEndpoint, walletAccount }: EmptySta
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="text-center max-w-md space-y-3">
           <Bookmark className="h-12 w-12 mx-auto text-muted-foreground/50" />
-          <h2 className="text-lg font-medium text-muted-foreground">No bookmarks yet</h2>
+          <h2 className="font-mono text-sm uppercase tracking-widest text-muted-foreground">No bookmarks yet</h2>
           <p className="text-sm text-muted-foreground">
             Chat with the blockchain and bookmark results to build your dashboard.
           </p>
@@ -108,7 +108,7 @@ export function EmptyState({ chainName, chainEndpoint, walletAccount }: EmptySta
       <div className="max-w-2xl mx-auto space-y-4">
         <div className="text-center space-y-2 pb-2">
           <Bookmark className="h-10 w-10 mx-auto text-muted-foreground/50" />
-          <h2 className="text-base font-medium">No bookmarks for {chainName || "this chain"} yet</h2>
+          <h2 className="font-mono text-sm uppercase tracking-widest text-muted-foreground">No bookmarks for {chainName || "this chain"} yet</h2>
           <p className="text-sm text-muted-foreground">Get started with one of these:</p>
         </div>
         <div className="space-y-2">
@@ -119,11 +119,11 @@ export function EmptyState({ chainName, chainEndpoint, walletAccount }: EmptySta
             return (
               <div
                 key={s.id}
-                className="flex items-center gap-3 p-3 border border-border/60 rounded-xl bg-card hover:bg-muted/30 transition-colors"
+                className="flex items-center gap-3 p-3 border border-border rounded-none bg-card hover:bg-muted/30 transition-colors"
               >
                 <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium">{s.title}</div>
+                  <div className="font-mono text-sm">{s.title}</div>
                   <div className="text-xs text-muted-foreground truncate">
                     {failed ? "Couldn't load — try again." : s.description}
                   </div>
