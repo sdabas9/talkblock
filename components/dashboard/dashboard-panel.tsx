@@ -5,6 +5,7 @@ import { useHistory } from "@/lib/stores/history-store"
 import { useBookmarkRefresh } from "./use-bookmark-refresh"
 import { RenameLabel } from "./rename-label"
 import { DashboardRenderer } from "./renderers"
+import { RendererBoundary } from "./renderer-boundary"
 import { getTypeLabel } from "@/lib/dashboard/modules"
 import { formatAge } from "@/lib/antelope/refetch"
 import { Button } from "@/components/ui/button"
@@ -73,7 +74,9 @@ export function DashboardPanel({ bookmark, onDragStart, onDragOver, onDrop }: Da
 
       {/* Content — fixed module height, inner scroll */}
       <div className="flex-1 min-h-0 overflow-auto p-3">
-        <DashboardRenderer toolName={bookmark.tool_name} result={bookmark.result} />
+        <RendererBoundary>
+          <DashboardRenderer toolName={bookmark.tool_name} result={bookmark.result} />
+        </RendererBoundary>
       </div>
 
       {/* Footer — age + status dot (dot replaces the old error banner) */}

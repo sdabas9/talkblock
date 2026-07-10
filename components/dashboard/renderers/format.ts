@@ -21,6 +21,10 @@ export function flattenResult(
   out: Array<[string, string]> = [],
   depth = 0
 ): Array<[string, string]> {
+  if (!obj || typeof obj !== "object") {
+    if (obj !== undefined && obj !== null) out.push([prefix || "value", String(obj)])
+    return out
+  }
   if (depth > 2) {
     out.push([prefix || "value", JSON.stringify(obj)])
     return out
