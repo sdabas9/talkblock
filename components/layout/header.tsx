@@ -18,12 +18,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { PanelLeft, Sun, SunMoon, Settings, Link2, Bot } from "lucide-react"
 import { useState, useEffect } from "react"
 
-type Theme = "light" | "dusk" | "dim" | "gold" | "orange"
-const THEME_CYCLE: Theme[] = ["light", "dusk", "dim", "gold", "orange"]
+type Theme = "light" | "dusk" | "dim" | "gold" | "orange" | "pink"
+const THEME_CYCLE: Theme[] = ["light", "dusk", "dim", "gold", "orange", "pink"]
 const THEME_LABELS: Record<Theme, string> = {
-  light: "Light", dusk: "Dusk", dim: "Dim", gold: "Gold", orange: "Orange",
+  light: "Light", dusk: "Dusk", dim: "Dim", gold: "Gold", orange: "Orange", pink: "Pink",
 }
-const DARK_CLASSES: Theme[] = ["dusk", "dim", "gold", "orange"]
+const DARK_CLASSES: Theme[] = ["dusk", "dim", "gold", "orange", "pink"]
 
 function useTheme() {
   const [theme, setTheme] = useState<Theme>("dim")
