@@ -86,7 +86,7 @@ export function ChatPanel() {
     [customFetch]
   )
 
-  const { messages, sendMessage, setMessages, status } = useChat({
+  const { messages, sendMessage, setMessages, status, stop } = useChat({
     transport,
     onError: (e) => {
       const msg = e?.message || String(e) || "Chat request failed"
@@ -437,6 +437,8 @@ export function ChatPanel() {
       <ChatInput
         onSend={handleSend}
         disabled={!isConfigured}
+        streaming={isLoading}
+        onStop={stop}
         placeholder={
           !endpoint
             ? "Connect to a chain first, or ask a general question..."

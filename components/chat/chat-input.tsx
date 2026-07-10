@@ -3,15 +3,17 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { SendHorizontal } from "lucide-react"
+import { SendHorizontal, Square } from "lucide-react"
 
 interface ChatInputProps {
   onSend: (message: string) => void
   disabled?: boolean
   placeholder?: string
+  streaming?: boolean
+  onStop?: () => void
 }
 
-export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, placeholder, streaming, onStop }: ChatInputProps) {
   const [value, setValue] = useState("")
 
   const handleSend = () => {
@@ -37,14 +39,25 @@ export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
           rows={1}
           disabled={disabled}
         />
-        <Button
-          onClick={handleSend}
-          disabled={disabled || !value.trim()}
-          size="icon"
-          className="shrink-0"
-        >
-          <SendHorizontal className="h-4 w-4" />
-        </Button>
+        {streaming ? (
+          <Button
+            onClick={onStop}
+            size="icon"
+            className="shrink-0"
+            aria-label="Stop response"
+          >
+            <Square className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button
+            onClick={handleSend}
+            disabled={disabled || !value.trim()}
+            size="icon"
+            className="shrink-0"
+          >
+            <SendHorizontal className="h-4 w-4" />
+          </Button>
+        )}
       </div>
     </div>
   )
